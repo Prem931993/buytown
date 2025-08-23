@@ -1,0 +1,211 @@
+import * as services from '../services/category.services.js';
+import multer from 'multer';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import fs from 'fs';
+
+// Get the directory name
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Configure multer for file uploads
+const upload = multer({ limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB limit
+
+// Get all categories with pagination and search
+export async function getAllCategories(req, res) {
+  try {
+    // Get pagination and search parameters from query
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search || '';
+    
+    const result = await services.getAllCategoriesService({ page, limit, search });
+    if (result.error) {
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+    res.status(result.status).json({
+      statusCode: result.status,
+      categories: result.categories,
+      pagination: result.pagination
+    });
+  } catch (error) {
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
+
+// Get category by ID
+export async function getCategoryById(req, res) {
+  try {
+    const { id } = req.params;
+    const result = await services.getCategoryByIdService(id);
+    if (result.error) {
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+    res.status(result.status).json({ statusCode: result.status, category: result.category });
+  } catch (error) {
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
+
+// Create a new category
+export async function createCategory(req, res) {
+  try {
+    const categoryData = req.body;
+    
+    // If image file is uploaded, add it to category data with the correct path
+    if (req.file) {
+      categoryData.image = '/categories/' + req.file.filename;
+    }
+    
+    const result = await services.createCategoryService(categoryData);
+    if (result.error) {
+      // If there's an error and a file was uploaded, remove the uploaded file
+      if (req.file) {
+        const frontendPublicPath = path.join(__dirname, '../../../../../frontend/public');
+        const imagePath = path.join(frontendPublicPath, 'categories', req.file.filename);
+        if (fs.existsSync(imagePath)) {
+          fs.unlinkSync(imagePath);
+        }
+      }
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+    res.status(result.status).json({ statusCode: result.status, category: result.category });
+  } catch (error) {
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
+
+// Update category by ID
+export async function updateCategory(req, res) {
+  try {
+    const { id } = req.params;
+    const categoryData = req.body;
+    
+    // Get the existing category to check if there's an old image to remove
+    const existingCategory = await services.getCategoryByIdService(id);
+    
+    // If image file is uploaded, add it to category data with the correct path
+    if (req.file) {
+      categoryData.image = '/categories/' + req.file.filename;
+    }
+    
+    const result = await services.updateCategoryService(id, categoryData);
+    if (result.error) {
+      // If there's an error and a new file was uploaded, remove the uploaded file
+      if (req.file) {
+        const frontendPublicPath = path.join(__dirname, '../../../../../frontend/public');
+        const imagePath = path.join(frontendPublicPath, 'categories', req.file.filename);
+        if (fs.existsSync(imagePath)) {
+          fs.unlinkSync(imagePath);
+        }
+      }
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+    
+    // If the update was successful and a new image was uploaded, remove the old image
+    if (req.file && existingCategory.category && existingCategory.category.image) {
+      const frontendPublicPath = path.join(__dirname, '../../../../../frontend/public');
+      const oldImagePath = path.join(frontendPublicPath, existingCategory.category.image);
+      if (fs.existsSync(oldImagePath)) {
+        fs.unlinkSync(oldImagePath);
+      }
+    }
+    
+    res.status(result.status).json({ statusCode: result.status, category: result.category });
+  } catch (error) {
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
+
+// Delete category by ID
+export async function deleteCategory(req, res) {
+  try {
+    const { id } = req.params;
+    
+    // Get the existing category to check if there's an image to remove
+    const existingCategory = await services.getCategoryByIdService(id);
+    
+    const result = await services.deleteCategoryService(id);
+    if (result.error) {
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+    
+    // If the deletion was successful and there was an image, remove the image file
+    if (existingCategory.category && existingCategory.category.image) {
+      const frontendPublicPath = path.join(__dirname, '../../../../../frontend/public');
+      const imagePath = path.join(frontendPublicPath, existingCategory.category.image);
+      if (fs.existsSync(imagePath)) {
+        fs.unlinkSync(imagePath);
+      }
+    }
+    
+    res.status(result.status).json({ statusCode: result.status, message: result.message });
+  } catch (error) {
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
+
+// Import categories from Excel file
+export async function importCategoriesFromExcel(req, res) {
+  try {
+    // Check if file is uploaded
+    if (!req.file) {
+      return res.status(400).json({ statusCode: 400, error: 'No file uploaded' });
+    }
+
+    // Check if file is Excel
+    if (!req.file.originalname.match(/\.(xlsx|xls)$/)) {
+      return res.status(400).json({ statusCode: 400, error: 'Please upload an Excel file' });
+    }
+
+    const result = await services.importCategoriesFromExcelService(req.file.buffer);
+    if (result.error) {
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+    
+    const response = {
+      statusCode: result.status,
+      message: result.message,
+      categories: result.categories
+    };
+    
+    if (result.errors) {
+      response.errors = result.errors;
+    }
+    
+    res.status(result.status).json(response);
+  } catch (error) {
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
+
+// Get child categories by parent ID
+export async function getChildCategories(req, res) {
+  try {
+    const { parentId } = req.params;
+    const result = await services.getChildCategoriesService(parentId);
+    if (result.error) {
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+    res.status(result.status).json({ statusCode: result.status, categories: result.categories });
+  } catch (error) {
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
+
+// Get root categories (categories with no parent)
+export async function getRootCategories(req, res) {
+  try {
+    const result = await services.getRootCategoriesService();
+    if (result.error) {
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+    res.status(result.status).json({ statusCode: result.status, categories: result.categories });
+  } catch (error) {
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
+
+// Export multer upload middleware
+export { upload };
