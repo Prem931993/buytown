@@ -16,9 +16,10 @@ import productRoutes from './src/modules/products/routes/product.routes.js';
 
 const app = express();
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:5000'],
+  origin: process.env.CORS_ORIGIN || '*',
   credentials: true
 }));
+
 app.use(json());
 
 // Add security middleware here
@@ -29,6 +30,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const frontendPublicPath = path.join(__dirname, '../frontend/public');
 app.use(express.static(frontendPublicPath));
+
+app.get('/', (req, res) => {
+  res.send('🚀 BuyTown API is live on Railway!');
+});
 
 // const apiLimiter = rateLimit({
 //   windowMs: 60 * 60 * 1000, // 1 hour
