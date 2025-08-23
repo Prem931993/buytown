@@ -20,7 +20,7 @@ export const development = {
 
 export const production = {
   client: 'pg',
-  connection: process.env.DATABASE_URL + '?sslmode=require',
+  connection: process.env.DATABASE_URL,
   migrations: {
     directory: './migrations'
   },
