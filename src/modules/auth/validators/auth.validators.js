@@ -1,12 +1,13 @@
-export const validateRegisterInput = ({ username, email, phone_no, password, role_id, gstin, address }) => {
-  if (!username || (!email && !phone_no) || !role_id) {
-    return 'Username, role, and either email or phone number are required.';
+export const validateRegisterInput = ({ firstname, lastname, email, phone_no, password, role, gstin, address }) => {
+  // Only require role and either email or phone number
+  if (!role || (!email && !phone_no)) {
+    return 'Role and either email or phone number are required.';
   }
-  // Only require password for admin (role_id === 1)
-  if (Number(role_id) === 1 && !password) {
+  // Only require password for admin (role === 'admin')
+  if (role === 'admin' && !password) {
     return 'Password is required for admin.';
   }
-  // gstin and address are optional, no validation needed
+  // firstname, lastname, gstin, and address are optional
   return null;
 };
 

@@ -1,16 +1,5 @@
 import * as services from '../services/banner.services.js';
-import multer from 'multer';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-import fs from 'fs';
-
-// Get the directory name
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Configure multer for file uploads
-const upload = multer({ limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB limit
+import { deleteFromCloudinary, extractPublicIdFromUrl } from '../../../config/cloudinary.js';
 
 // Get all banners
 export async function getAllBanners(req, res) {
@@ -88,7 +77,7 @@ export async function deleteBanner(req, res) {
   try {
     const { id } = req.params;
     
-    // Get the existing banner to check if there's an image to remove
+    // Get the existing banner to check if there's an image to remove from Cloudinary
     const existingBanner = await services.getBannerByIdService(id);
     
     const result = await services.deleteBannerService(id);
@@ -96,12 +85,19 @@ export async function deleteBanner(req, res) {
       return res.status(result.status).json({ statusCode: result.status, error: result.error });
     }
     
-    // If the deletion was successful and there was an image, remove the image file
+    // If the deletion was successful and there was an image, remove the image from Cloudinary
     if (existingBanner.banner && existingBanner.banner.file_path) {
-      const frontendPublicPath = path.join(__dirname, '../../../../../frontend/public');
-      const imagePath = path.join(frontendPublicPath, existingBanner.banner.file_path);
-      if (fs.existsSync(imagePath)) {
-        fs.unlinkSync(imagePath);
+      // Check if it's a Cloudinary URL (starts with https://res.cloudinary.com)
+      if (existingBanner.banner.file_path.startsWith('https://res.cloudinary.com')) {
+        const publicId = extractPublicIdFromUrl(existingBanner.banner.file_path);
+        if (publicId) {
+          try {
+            await deleteFromCloudinary(publicId, existingBanner.banner.media_type === 'video' ? 'video' : 'image');
+          } catch (cloudinaryError) {
+            console.error('Failed to delete from Cloudinary:', cloudinaryError);
+            // Continue with the response even if Cloudinary deletion fails
+          }
+        }
       }
     }
     
@@ -110,6 +106,3 @@ export async function deleteBanner(req, res) {
     res.status(500).json({ statusCode: 500, error: 'Internal server error' });
   }
 }
-
-// Export multer upload middleware
-export { upload };

@@ -62,6 +62,45 @@ export async function verifyUserToken(req, res, next) {
   }
 }
 
+export async function verifyAdminToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Bearer <token>
+
+  if (!token) {
+    return res.status(401).json({ error: 'Admin access token missing' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+
+    // ✅ Double-check role in DB
+    const user = await knex('byt_users').where({ id: decoded.id }).first();
+    if (!user) {
+      return res.status(401).json({ error: 'Admin user not found' });
+    }
+
+    if (user.role_id !== decoded.role_id) {
+      return res.status(403).json({ error: 'Token role does not match user role. Please login again.' });
+    }
+
+    // ✅ Check if user has admin role (role_id = 1)
+    if (user.role_id !== 1) {
+      return res.status(403).json({ error: 'Access denied: Admin privileges required' });
+    }
+
+    // ✅ Attach admin user info to request for later
+    req.admin = {
+      id: user.id,
+      role_id: user.role_id
+    };
+
+    next();
+  } catch (err) {
+    console.error('verifyAdminToken - Token verification error:', err.message);
+    return res.status(401).json({ error: 'Invalid or expired admin token' });
+  }
+}
+
 export function auditTrail(req, res, next) {
   res.on('finish', () => {
     const userId = req.auditLog?.userId || null;

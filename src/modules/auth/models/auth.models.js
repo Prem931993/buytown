@@ -6,10 +6,10 @@ export const findUserByEmail = (email) =>
   knex('byt_users').where({ email }).first();
 
 export const findUserByPhone = (phone_no) =>
-  knex('byt_users').where({ phone_no, status: true, role_id: 2 }).first();
+  knex('byt_users').where({ phone_no }).first();
 
 export const findUserById = (id) =>
-  knex('byt_users').where({ id, status: true, role_id: 2 }).first();
+  knex('byt_users').where({ id }).first();
 
 export const findUserByIdentity = (identity) =>
   knex('byt_users')
