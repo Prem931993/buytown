@@ -72,7 +72,6 @@ export async function getAllProducts(req, res) {
 export async function getProductById(req, res) {
   try {
     const { id } = req.params;
-    console.log("Fetching product with ID:", id);
     const result = await services.getProductByIdService(id);
     if (result.error) {
       return res.status(result.status).json({ statusCode: result.status, error: result.error });

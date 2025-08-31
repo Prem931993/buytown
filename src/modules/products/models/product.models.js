@@ -155,8 +155,6 @@ export async function createProduct(productData) {
 
 // Update product by ID
 export async function updateProduct(id, productData) {
-  console.log('Updating product with ID:', id);
-  console.log('Product data:', productData);
   // Update the product
   await knex('byt_products')
     .where({ id })

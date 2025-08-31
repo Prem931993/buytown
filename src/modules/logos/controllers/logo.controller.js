@@ -1,12 +1,5 @@
 import * as services from '../services/logo.services.js';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-import fs from 'fs';
-
-// Get the directory name
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { deleteFromCloudinary, extractPublicIdFromUrl } from '../../../config/cloudinary.js';
 
 // Get all logos
 export async function getAllLogos(req, res) {
@@ -52,7 +45,7 @@ export async function deleteLogo(req, res) {
   try {
     const { id } = req.params;
     
-    // Get the existing logo to check if there's an image to remove
+    // Get the existing logo to check if there's an image to remove from Cloudinary
     const existingLogo = await services.getLogoByIdService(id);
     
     const result = await services.deleteLogoService(id);
@@ -60,12 +53,19 @@ export async function deleteLogo(req, res) {
       return res.status(result.status).json({ statusCode: result.status, error: result.error });
     }
     
-    // If the deletion was successful and there was an image, remove the image file
+    // If the deletion was successful and there was an image, remove the image from Cloudinary
     if (existingLogo.logo && existingLogo.logo.file_path) {
-      const frontendPublicPath = path.join(__dirname, '../../../../../frontend/public');
-      const imagePath = path.join(frontendPublicPath, existingLogo.logo.file_path);
-      if (fs.existsSync(imagePath)) {
-        fs.unlinkSync(imagePath);
+      // Check if it's a Cloudinary URL (starts with https://res.cloudinary.com)
+      if (existingLogo.logo.file_path.startsWith('https://res.cloudinary.com')) {
+        const publicId = extractPublicIdFromUrl(existingLogo.logo.file_path);
+        if (publicId) {
+          try {
+            await deleteFromCloudinary(publicId);
+          } catch (cloudinaryError) {
+            console.error('Failed to delete from Cloudinary:', cloudinaryError);
+            // Continue with the response even if Cloudinary deletion fails
+          }
+        }
       }
     }
     

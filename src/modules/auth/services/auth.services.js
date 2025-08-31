@@ -3,25 +3,117 @@ import * as helpers from '../helpers/auth.helpers.js';
 import * as validators from '../validators/auth.validators.js';
 import logger from '../../../config/logger.js';
 import knex from '../../../config/db.js';
+import * as smsServices from './sms.services.js';
+import * as smsModels from '../models/sms.models.js';
+import { uploadToCloudinary } from '../../../config/cloudinary.js';
 
 export async function registerService(data) {
   const error = validators.validateRegisterInput(data);
   if (error) return { error, status: 400 };
 
-  const { username, email, phone_no, password, role_id, gstin, address } = data;
+  const {
+    firstname = '',
+    lastname = '',
+    email,
+    phone_no,
+    password,
+    address,
+    gstin,
+    profile_photo,
+    license,
+    role,
+    status = 'active'
+  } = data;
+
+  // Validate required fields based on role
+  if (role === 'admin' && (!email || !password)) {
+    return { error: 'Email and password are required for admin users', status: 400 };
+  }
+
+  if (role === 'delivery_person' && (!email && !phone_no)) {
+    return { error: 'Either email or phone number is required for delivery persons', status: 400 };
+  }
+
+  if (!email && !phone_no) {
+    return { error: 'Either email or phone number is required', status: 400 };
+  }
 
   // Check for duplicate
-  const existingUser = await models.findUserByEmail(email) || await models.findUserByPhone(phone_no);
-  if (existingUser) {
-    let conflictField = email && existingUser.email === email ? 'email address' : 'phone number';
-    return {
-      error: `An account with this ${conflictField} already exists. Please use a different ${conflictField} or log in instead.`,
-      status: 409
-    };
+  if (email) {
+    const existingUserByEmail = await models.findUserByEmail(email);
+    if (existingUserByEmail) {
+      return {
+        error: 'An account with this email address already exists. Please use a different email or log in instead.',
+        status: 409
+      };
+    }
+  }
+
+  if (phone_no) {
+    const existingUserByPhone = await models.findUserByPhone(phone_no);
+    if (existingUserByPhone) {
+      return {
+        error: 'An account with this phone number already exists. Please use a different phone number or log in instead.',
+        status: 409
+      };
+    }
   }
 
   const hashed = password ? await helpers.hashPassword(password) : null;
-  const [user] = await models.createUser({ username, email, phone_no, password: hashed, role_id, gstin, address });
+
+  // Map role string to role_id
+  const roleMapping = {
+    'admin': 1,
+    'user': 2,
+    'delivery_person': 3
+  };
+
+  const role_id = roleMapping[role] || 3; // Default to user role
+
+  // Handle file uploads to Cloudinary
+  let profilePhotoUrl = null;
+  let licenseUrl = null;
+
+  try {
+    // Upload profile photo if present
+    if (profile_photo && profile_photo.buffer) {
+      const uploadResult = await uploadToCloudinary(
+        profile_photo.buffer,
+        'users/profile_photos',
+        'image'
+      );
+      profilePhotoUrl = uploadResult.secure_url;
+    }
+
+    // Upload license if present
+    if (license && license.buffer) {
+      const uploadResult = await uploadToCloudinary(
+        license.buffer,
+        'users/licenses',
+        'auto'
+      );
+      licenseUrl = uploadResult.secure_url;
+    }
+  } catch (uploadError) {
+    console.error('Error uploading files to Cloudinary:', uploadError);
+    return { error: 'Failed to upload files. Please try again.', status: 500 };
+  }
+
+  const userData = {
+    firstname,
+    lastname,
+    email,
+    phone_no,
+    password: hashed,
+    address,
+    gstin,
+    profile_photo: profilePhotoUrl,
+    license: licenseUrl,
+    role_id,
+    status: status === 'active'
+  };
+
+  const [user] = await models.createUser(userData);
 
   return { user, status: 201 };
 }
@@ -73,7 +165,8 @@ export async function loginService(data, apiRole) {
   return {
     user: {
       id: user.id,
-      username: user.username,
+      firstname: user.firstname,
+      lastname: user.lastname,
       email: user.email,
       phone_no: user.phone_no,
       role_id: user.role_id
@@ -186,11 +279,40 @@ export async function validatePhoneService(phone_no) {
   if (!user) {
     return { error: 'User not found.', status: 404 };
   }
+
+  // Check OTP send attempts for rate limiting
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+
+  // Count OTP sends today for this phone
+  const otpSendsToday = await smsModels.countOtpSendsToday(phone_no, today);
+  if (otpSendsToday >= 5) {
+    return { error: 'OTP send limit reached for today. Please try again tomorrow.', status: 429 };
+  }
+
+  // Check last OTP send time for cooldown
+  const lastOtpSend = await smsModels.getLastOtpSend(phone_no);
+  if (lastOtpSend && new Date(lastOtpSend.attempt_date) > oneMinuteAgo) {
+    return { error: 'Please wait at least 1 minute before requesting another OTP.', status: 429 };
+  }
+
+  // Send OTP
+  const otp = smsServices.generateOtp();
+  const sendResult = await smsServices.sendOtp(phone_no, user.email, otp);
+  if (!sendResult.success) {
+    return { error: sendResult.error || 'Failed to send OTP', status: 500 };
+  }
+
+  // Log OTP send attempt
+  await smsModels.logOtpSendAttempt(phone_no, user.id);
+
   return {
     valid: true,
     userId: user.id,
     hasPassword: !!user.password,
-    status: 200
+    status: 200,
+    message: 'OTP sent successfully'
   };
 }
 
@@ -201,7 +323,7 @@ export async function getUserDetailsById(userId) {
   return await models.findUserById(userId);
 }
 
-export async function setPasswordService(userId, newPassword) {
+export async function setPasswordService(userId, newPassword, userAgent, ip, otp) {
   const user = await models.findUserById(userId);
   if (!user) {
     return { error: 'User not found.', status: 404 };
@@ -209,7 +331,53 @@ export async function setPasswordService(userId, newPassword) {
   if (user.password) {
     return { error: 'Password already set for this user.', status: 400, user: user };
   }
+
+  // Verify OTP before setting password
+  if (!otp) {
+    return { error: 'OTP is required to set password.', status: 400 };
+  }
+  const otpVerification = await smsServices.verifyOtp(user.phone_no, otp);
+  if (!otpVerification.success) {
+    return { error: otpVerification.error, status: 400 };
+  }
+
+  // Set the password
   const hashed = await helpers.hashPassword(newPassword);
   await models.updateUserPassword(userId, hashed);
-  return { message: 'Password set successfully.', status: 200, user: user };
+
+  // Generate tokens (similar to loginService)
+  const accessToken = helpers.generateToken(
+    { id: user.id, role_id: user.role_id },
+    process.env.JWT_ACCESS_SECRET,
+    { expiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN }
+  );
+  const refreshToken = helpers.generateToken(
+    { id: user.id },
+    process.env.JWT_REFRESH_SECRET,
+    { expiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN }
+  );
+
+  // Create user session
+  await models.insertUserSession({
+    user_id: user.id,
+    refresh_token: refreshToken,
+    user_agent: userAgent,
+    ip_address: ip,
+    expires_at: knex.raw(`NOW() + interval '${process.env.REFRESH_TOKEN_EXPIRES_IN}'`)
+  });
+
+  return {
+    message: 'Password set successfully. You are now logged in.',
+    status: 200,
+    user: {
+      id: user.id,
+      firstname: user.firstname,
+      lastname: user.lastname,
+      email: user.email,
+      phone_no: user.phone_no,
+      role_id: user.role_id
+    },
+    accessToken,
+    refreshToken
+  };
 }

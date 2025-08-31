@@ -5,12 +5,11 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import multer from 'multer'; // Import multer for file uploads
-import fs from 'fs'; // Import fs for file system operations
 
 dotenv.config();
 
 import authRoutes from './src/modules/auth/routes/authRoutes.js';
+import smsRoutes from './src/modules/auth/routes/sms.routes.js';
 import categoryRoutes from './src/modules/categories/routes/category.routes.js';
 import brandRoutes from './src/modules/brands/routes/brand.routes.js';
 import variationRoutes from './src/modules/variations/routes/variation.routes.js';
@@ -18,6 +17,7 @@ import productRoutes from './src/modules/products/routes/product.routes.js';
 import bannerRoutes from './src/modules/banners/routes/banner.routes.js';
 import logoRoutes from './src/modules/logos/routes/logo.routes.js';
 import userRoutes from './src/modules/users/routes/user.routes.js';
+import { getUploadMiddleware, uploadToCloudinary } from './src/config/cloudinary.js';
 
 const app = express();
 app.use(cors({
@@ -26,6 +26,7 @@ app.use(cors({
 }));
 
 app.use(json());
+app.use(express.urlencoded({ extended: true }));
 
 // Add security middleware here
 app.use(helmet());
@@ -46,30 +47,43 @@ if (process.env.NODE_ENV === 'production') {
 
 app.use(express.static(frontendPublicPath));
 
-// File upload configuration
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const module = req.params.module; // Get the module name from the request
-    const dir = path.join(frontendPublicPath, module); // Set the destination folder
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true }); // Create the directory if it doesn't exist
+// Serve static files from uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Get upload middleware based on environment
+const upload = getUploadMiddleware();
+
+// File upload endpoint with Cloudinary support
+app.post('/api/v1/upload/:module', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
     }
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
 
-const upload = multer({ storage: storage });
+    let filePath;
+    
+    if (process.env.CLOUDINARY_CLOUD_NAME) {
+      // Upload to Cloudinary when configured
+      const result = await uploadToCloudinary(
+        req.file.buffer,
+        req.params.module,
+        req.file.mimetype.startsWith('video/') ? 'video' : 'image'
+      );
 
-// File upload endpoint
-app.post('/api/v1/upload/:module', upload.single('file'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded' });
+      filePath = result.secure_url;
+    } else {
+      // Use local storage when Cloudinary is not configured
+      filePath = `/${req.params.module}/${req.file.filename}`;
+    }
+
+    res.status(200).json({ 
+      message: 'File uploaded successfully', 
+      filePath: filePath 
+    });
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ error: 'File upload failed' });
   }
-  res.status(200).json({ message: 'File uploaded successfully', filePath: `/${req.params.module}/${req.file.filename}` });
 });
 
 app.get('/', (req, res) => {
@@ -84,6 +98,7 @@ app.get('/', (req, res) => {
 // app.use('/api/', apiLimiter);
 
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/sms', smsRoutes);
 app.use('/api/v1/categories', categoryRoutes);
 app.use('/api/v1/brands', brandRoutes);
 app.use('/api/v1/variations', variationRoutes);

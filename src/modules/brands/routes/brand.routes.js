@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import * as brandController from '../controllers/brand.controller.js';
+import { verifyAdminToken } from '../../auth/middleware/apiAccessMiddleware.js';
 import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -44,11 +45,11 @@ const importUpload = multer({
 const router = Router();
 
 // Routes for brands
-router.get('/', brandController.getAllBrands);
-router.get('/:id', brandController.getBrandById);
-router.post('/', upload.single('image'), brandController.createBrand);
-router.put('/:id', upload.single('image'), brandController.updateBrand);
-router.delete('/:id', brandController.deleteBrand);
-router.post('/import', importUpload.single('file'), brandController.importBrandsFromExcel);
+router.get('/', verifyAdminToken, brandController.getAllBrands);
+router.get('/:id', verifyAdminToken, brandController.getBrandById);
+router.post('/', verifyAdminToken, upload.single('image'), brandController.createBrand);
+router.put('/:id', verifyAdminToken, upload.single('image'), brandController.updateBrand);
+router.delete('/:id', verifyAdminToken, brandController.deleteBrand);
+router.post('/import', verifyAdminToken, importUpload.single('file'), brandController.importBrandsFromExcel);
 
 export default router;
