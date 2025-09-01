@@ -18,6 +18,9 @@ import bannerRoutes from './src/modules/banners/routes/banner.routes.js';
 import logoRoutes from './src/modules/logos/routes/logo.routes.js';
 import userRoutes from './src/modules/users/routes/user.routes.js';
 import { getUploadMiddleware, uploadToCloudinary } from './src/config/cloudinary.js';
+import configRoutes from './src/modules/config/routes/config.routes.js';
+import orderRoutes from './src/modules/orders/routes/order.routes.js';
+import dashboardRoutes from './src/modules/dashboard/routes/dashboard.routes.js';
 
 const app = express();
 app.use(cors({
@@ -106,6 +109,9 @@ app.use('/api/v1/products', productRoutes);
 app.use('/api/v1/banners', bannerRoutes);
 app.use('/api/v1/logos', logoRoutes);
 app.use('/api/v1/users', userRoutes);
+app.use('/api/v1/config', configRoutes);
+app.use('/api/v1/orders', orderRoutes);
+app.use('/api/v1/dashboard', dashboardRoutes);
 
 app.post('/', (req, res) => res.send('BuyTown API Microservice'));
 
