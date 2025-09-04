@@ -6,7 +6,7 @@ export async function createEmailConfiguration(data) {
 }
 
 export async function getEmailConfiguration() {
-  return await knex('byt_email_configurations').first();
+  return await knex('byt_email_configurations').where('enabled', true).first();
 }
 
 export async function getAllEmailConfigurations() {

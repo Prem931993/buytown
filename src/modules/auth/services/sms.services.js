@@ -26,7 +26,7 @@ export async function sendOtp(phone, email, otp) {
     // Send SMS
     if (phone) {
       try {
-        await sendSms(phone, `Your OTP is: ${otp}`, smsConfig);
+        // await sendSms(phone, `Your OTP is: ${otp}`, smsConfig);
         smsSent = true;
       } catch (smsError) {
         console.error(`[OTP_SEND] ❌ SMS sending failed to ${phone}: ${smsError.message}`);

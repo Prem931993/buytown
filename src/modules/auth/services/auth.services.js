@@ -142,7 +142,6 @@ export async function loginService(data, apiRole) {
   }
 
   await models.resetFailedAttempts(user.id);
-
   const accessToken = helpers.generateToken(
     { id: user.id, role_id: user.role_id },
     process.env.JWT_ACCESS_SECRET,
@@ -154,6 +153,16 @@ export async function loginService(data, apiRole) {
     { expiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN }
   );
 
+  // Generate admin token for admin users (role_id = 1)
+  let adminToken = null;
+  if (user.role_id === 1) {
+    adminToken = helpers.generateToken(
+      { id: user.id, role_id: user.role_id },
+      process.env.JWT_API_SECRET,
+      { expiresIn: '1d' }
+    );
+  }
+
   await models.insertUserSession({
     user_id: user.id,
     refresh_token: refreshToken,
@@ -162,7 +171,7 @@ export async function loginService(data, apiRole) {
     expires_at: knex.raw(`NOW() + interval '${process.env.REFRESH_TOKEN_EXPIRES_IN}'`)
   });
 
-  return {
+  const response = {
     user: {
       id: user.id,
       firstname: user.firstname,
@@ -175,6 +184,13 @@ export async function loginService(data, apiRole) {
     refreshToken,
     status: 200
   };
+
+  // Include admin token for admin users
+  if (adminToken) {
+    response.adminToken = adminToken;
+  }
+
+  return response;
 }
 
 export async function refreshTokenService(refreshToken, req) {
@@ -235,7 +251,9 @@ export async function forgotPasswordService(identity, req) {
   const token = helpers.generateRandomToken();
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
   await models.insertPasswordReset({ user_id: user.id, token, expires_at: expiresAt });
-  const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+  // Use FRONTEND_URL environment variable or fallback to default localhost URL
+  const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  const resetLink = `${baseUrl}/reset-password?token=${token}`;
   await helpers.sendResetEmail(user.email, resetLink);
   return { message: 'Password reset link sent. Please check your email.', status: 200, user };
 }
@@ -280,6 +298,17 @@ export async function validatePhoneService(phone_no) {
     return { error: 'User not found.', status: 404 };
   }
 
+  // Check if user has a password - return success with hasPassword flag
+  if (user.password) {
+    return {
+      valid: true,
+      userId: user.id,
+      hasPassword: true,
+      status: 200,
+      message: 'User found with existing password'
+    };
+  }
+
   // Check OTP send attempts for rate limiting
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -310,9 +339,9 @@ export async function validatePhoneService(phone_no) {
   return {
     valid: true,
     userId: user.id,
-    hasPassword: !!user.password,
+    hasPassword: false,
     status: 200,
-    message: 'OTP sent successfully'
+    message: otp
   };
 }
 
@@ -344,7 +373,6 @@ export async function setPasswordService(userId, newPassword, userAgent, ip, otp
   // Set the password
   const hashed = await helpers.hashPassword(newPassword);
   await models.updateUserPassword(userId, hashed);
-
   // Generate tokens (similar to loginService)
   const accessToken = helpers.generateToken(
     { id: user.id, role_id: user.role_id },

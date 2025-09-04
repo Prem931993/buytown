@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import * as categoryController from '../controllers/category.controller.js';
-import { verifyAdminToken } from '../../auth/middleware/apiAccessMiddleware.js';
+import verifyDualAuth from '../../auth/middleware/dualAuthMiddleware.js';
 import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -45,13 +45,13 @@ const importUpload = multer({
 const router = Router();
 
 // Routes for categories
-router.get('/', verifyAdminToken, categoryController.getAllCategories);
-router.get('/root', verifyAdminToken, categoryController.getRootCategories);
-router.get('/:id', verifyAdminToken, categoryController.getCategoryById);
-router.get('/:parentId/children', verifyAdminToken, categoryController.getChildCategories);
-router.post('/', verifyAdminToken, upload.single('image'), categoryController.createCategory);
-router.put('/:id', verifyAdminToken, upload.single('image'), categoryController.updateCategory);
-router.delete('/:id', verifyAdminToken, categoryController.deleteCategory);
-router.post('/import', verifyAdminToken, importUpload.single('file'), categoryController.importCategoriesFromExcel);
+router.get('/', verifyDualAuth, categoryController.getAllCategories);
+router.get('/root', verifyDualAuth, categoryController.getRootCategories);
+router.get('/:id', verifyDualAuth, categoryController.getCategoryById);
+router.get('/:parentId/children', verifyDualAuth, categoryController.getChildCategories);
+router.post('/', verifyDualAuth, upload.single('image'), categoryController.createCategory);
+router.put('/:id', verifyDualAuth, upload.single('image'), categoryController.updateCategory);
+router.delete('/:id', verifyDualAuth, categoryController.deleteCategory);
+router.post('/import', verifyDualAuth, importUpload.single('file'), categoryController.importCategoriesFromExcel);
 
 export default router;

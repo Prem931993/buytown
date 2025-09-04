@@ -37,6 +37,7 @@ export async function getAllEmailConfigurations(req, res) {
 // Create Email Configuration
 export async function createEmailConfiguration(req, res) {
   const {
+    config_type,
     smtp_host,
     smtp_port,
     smtp_user,
@@ -52,18 +53,33 @@ export async function createEmailConfiguration(req, res) {
     token_expires_at
   } = req.body;
 
-  // Basic validation - either SMTP or OAuth2 fields must be provided
-  const hasSMTP = smtp_host && smtp_port && smtp_user && smtp_password && from_email && from_name;
-  const hasOAuth2 = mail_user && mail_client_id && mail_client_secret;
-
-  if (!hasSMTP && !hasOAuth2) {
+  // Validate config_type
+  if (!config_type || !['smtp', 'gmail_app_password', 'oauth2'].includes(config_type)) {
     return res.status(400).json({
       statusCode: 400,
-      error: 'Either SMTP configuration or OAuth2 configuration is required'
+      error: 'Valid config_type is required (smtp, gmail_app_password, or oauth2)'
     });
   }
 
+  // Validate required fields based on config_type
+  if (config_type === 'smtp' || config_type === 'gmail_app_password') {
+    if (!smtp_host || !smtp_port || !smtp_user || !smtp_password || !from_email || !from_name) {
+      return res.status(400).json({
+        statusCode: 400,
+        error: 'SMTP configuration fields are required for SMTP and Gmail App Password types'
+      });
+    }
+  } else if (config_type === 'oauth2') {
+    if (!mail_user || !mail_client_id || !mail_client_secret || !from_email || !from_name) {
+      return res.status(400).json({
+        statusCode: 400,
+        error: 'OAuth2 configuration fields are required for OAuth2 type'
+      });
+    }
+  }
+
   const result = await services.createEmailConfiguration({
+    config_type,
     smtp_host,
     smtp_port,
     smtp_user,
@@ -76,7 +92,7 @@ export async function createEmailConfiguration(req, res) {
     mail_client_secret,
     mail_refresh_token,
     mail_access_token,
-    token_expires_at
+    token_expires_at: token_expires_at && token_expires_at !== '' ? token_expires_at : null
   });
 
   if (!result.success) {
@@ -97,6 +113,7 @@ export async function createEmailConfiguration(req, res) {
 export async function updateEmailConfiguration(req, res) {
   const { id } = req.params;
   const {
+    config_type,
     smtp_host,
     smtp_port,
     smtp_user,
@@ -119,7 +136,16 @@ export async function updateEmailConfiguration(req, res) {
     });
   }
 
+  // Validate config_type if provided
+  if (config_type && !['smtp', 'gmail_app_password', 'oauth2'].includes(config_type)) {
+    return res.status(400).json({
+      statusCode: 400,
+      error: 'Valid config_type is required (smtp, gmail_app_password, or oauth2)'
+    });
+  }
+
   const updateData = {};
+  if (config_type !== undefined) updateData.config_type = config_type;
   if (smtp_host !== undefined) updateData.smtp_host = smtp_host;
   if (smtp_port !== undefined) updateData.smtp_port = smtp_port;
   if (smtp_user !== undefined) updateData.smtp_user = smtp_user;
@@ -132,7 +158,7 @@ export async function updateEmailConfiguration(req, res) {
   if (mail_client_secret !== undefined) updateData.mail_client_secret = mail_client_secret;
   if (mail_refresh_token !== undefined) updateData.mail_refresh_token = mail_refresh_token;
   if (mail_access_token !== undefined) updateData.mail_access_token = mail_access_token;
-  if (token_expires_at !== undefined) updateData.token_expires_at = token_expires_at;
+  if (token_expires_at !== undefined) updateData.token_expires_at = token_expires_at && token_expires_at !== '' ? token_expires_at : null;
 
   const result = await services.updateEmailConfiguration(id, updateData);
 
