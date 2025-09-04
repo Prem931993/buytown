@@ -54,7 +54,8 @@ export async function login(req, res) {
     message: 'Login successful.',
     user: result.user,
     accessToken: result.accessToken,
-    refreshToken: result.refreshToken
+    refreshToken: result.refreshToken,
+    ...(result.adminToken && { adminToken: result.adminToken })
   });
 }
 

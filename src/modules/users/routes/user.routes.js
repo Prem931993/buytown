@@ -1,16 +1,16 @@
 import express from 'express';
 import { getUsers, getUser, createUser, updateUser, deleteUser } from '../controllers/user.controller.js';
-import { verifyAdminToken } from '../../auth/middleware/apiAccessMiddleware.js';
+import verifyDualAuth from '../../auth/middleware/dualAuthMiddleware.js';
 import { uploadUserFiles } from '../middleware/userUploadMiddleware.js';
 
 const router = express.Router();
 
 // Define user-related routes with admin middleware
-router.get('/', verifyAdminToken, getUsers);
-router.get('/:id', verifyAdminToken, getUser);
-router.post('/', verifyAdminToken, uploadUserFiles, createUser);
-router.put('/:id', verifyAdminToken, uploadUserFiles, updateUser);
-router.delete('/:id', verifyAdminToken, deleteUser);
+router.get('/', verifyDualAuth, getUsers);
+router.get('/:id', verifyDualAuth, getUser);
+router.post('/', verifyDualAuth, uploadUserFiles, createUser);
+router.put('/:id', verifyDualAuth, uploadUserFiles, updateUser);
+router.delete('/:id', verifyDualAuth, deleteUser);
 
 // Add more user-related routes as needed
 

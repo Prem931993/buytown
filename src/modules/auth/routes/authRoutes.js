@@ -2,7 +2,8 @@ import { Router } from 'express';
 import multer from 'multer';
 
 import * as authController from '../controllers/auth.controller.js';
-import { verifyApiToken, verifyUserToken, verifyAdminToken, auditTrail } from '../middleware/apiAccessMiddleware.js';
+import { verifyApiToken, verifyUserToken, auditTrail } from '../middleware/apiAccessMiddleware.js';
+import verifyDualAuth from '../middleware/dualAuthMiddleware.js';
 
 const router = Router();
 
@@ -42,11 +43,11 @@ router.post('/reset-password', authController.resetPassword);
 router.post('/user/validate-phone', verifyApiToken(2), authController.validatePhone);
 router.post('/user/set-password', verifyApiToken(2), auditTrail, authController.setPassword);
 router.post('/verify-token', verifyUserToken, authController.verifyToken);
-router.post('/verify-admin-token', verifyAdminToken, (req, res) => {
+router.post('/verify-admin-token', verifyDualAuth, (req, res) => {
   res.status(200).json({
     statusCode: 200,
     message: 'Admin token is valid',
-    admin: req.admin
+    admin: req.user
   });
 });
 

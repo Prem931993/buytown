@@ -21,6 +21,8 @@ import { getUploadMiddleware, uploadToCloudinary } from './src/config/cloudinary
 import configRoutes from './src/modules/config/routes/config.routes.js';
 import orderRoutes from './src/modules/orders/routes/order.routes.js';
 import dashboardRoutes from './src/modules/dashboard/routes/dashboard.routes.js';
+import vehicleRoutes from './src/modules/vehicles/routes/vehicle.routes.js';
+import deliveryRoutes from './src/modules/vehicles/routes/delivery.routes.js';
 
 const app = express();
 app.use(cors({
@@ -112,6 +114,8 @@ app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/config', configRoutes);
 app.use('/api/v1/orders', orderRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
+app.use('/api/v1/vehicles', vehicleRoutes);
+app.use('/api/v1/delivery', deliveryRoutes);
 
 app.post('/', (req, res) => res.send('BuyTown API Microservice'));
 

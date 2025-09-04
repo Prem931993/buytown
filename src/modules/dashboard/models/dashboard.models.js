@@ -1,11 +1,9 @@
 import db from '../../../config/db.js';
 
-// Get orders awaiting confirmation count
 export async function getOrdersAwaitingConfirmationCount() {
   try {
     const result = await db('byt_orders')
       .where('status', 'awaiting_confirmation')
-      .where('deleted_at', null)
       .count('* as count')
       .first();
 
@@ -31,7 +29,6 @@ export async function getLowStockProducts(limit = 10) {
         'byt_brands.name as brand_name'
       )
       .where('byt_products.stock', '<=', 5)
-      .where('byt_products.deleted_at', null)
       .orderBy('byt_products.stock', 'asc')
       .limit(limit);
 
@@ -41,7 +38,6 @@ export async function getLowStockProducts(limit = 10) {
   }
 }
 
-// Get recent sales (last 30 days)
 export async function getRecentSales(days = 30) {
   try {
     const date = new Date();
@@ -55,10 +51,9 @@ export async function getRecentSales(days = 30) {
         'byt_orders.total_amount',
         'byt_orders.status',
         'byt_orders.created_at',
-        'byt_users.name as customer_name'
+        'byt_users.firstname as customer_name'
       )
       .where('byt_orders.created_at', '>=', date)
-      .where('byt_orders.deleted_at', null)
       .orderBy('byt_orders.created_at', 'desc')
       .limit(20);
 
@@ -85,7 +80,6 @@ export async function getPopularProducts(limit = 10) {
         'byt_categories.name as category_name',
         'byt_brands.name as brand_name'
       )
-      .where('byt_products.deleted_at', null)
       .orderBy('byt_products.stock', 'desc')
       .limit(limit);
 
@@ -103,7 +97,6 @@ export async function getMostUsedDeliveryVehicles() {
       .count('* as usage_count')
       .whereNotNull('delivery_vehicle')
       .where('delivery_vehicle', '!=', '')
-      .where('deleted_at', null)
       .groupBy('delivery_vehicle')
       .orderBy('usage_count', 'desc')
       .limit(10);
@@ -118,7 +111,6 @@ export async function getMostUsedDeliveryVehicles() {
 export async function getTotalProductsCount() {
   try {
     const result = await db('byt_products')
-      .where('deleted_at', null)
       .count('* as count')
       .first();
 
@@ -132,7 +124,6 @@ export async function getTotalProductsCount() {
 export async function getTotalOrdersCount() {
   try {
     const result = await db('byt_orders')
-      .where('deleted_at', null)
       .count('* as count')
       .first();
 
@@ -159,7 +150,6 @@ export async function getTotalUsersCount() {
 export async function getTotalRevenue() {
   try {
     const result = await db('byt_orders')
-      .where('deleted_at', null)
       .sum('total_amount as total')
       .first();
 
@@ -178,7 +168,6 @@ export async function getMonthlyRevenue() {
         db.raw('SUM(total_amount) as revenue'),
         db.raw('COUNT(*) as order_count')
       )
-      .where('deleted_at', null)
       .where('created_at', '>=', db.raw("DATE_TRUNC('month', CURRENT_DATE - INTERVAL '12 months')"))
       .groupBy(db.raw("DATE_TRUNC('month', created_at)"))
       .orderBy('month', 'desc');
@@ -204,7 +193,6 @@ export async function getOrderStatistics() {
         db.raw('SUM(total_amount) as total_revenue'),
         db.raw('AVG(total_amount) as average_order_value')
       )
-      .where('deleted_at', null)
       .first();
 
     return { success: true, stats };
