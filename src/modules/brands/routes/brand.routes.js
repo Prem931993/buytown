@@ -11,25 +11,32 @@ import fs from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Ensure the brands directory exists in the frontend public folder
-const frontendPublicPath = path.join(__dirname, '../../../../../frontend/public');
-const brandsDir = path.join(frontendPublicPath, 'brands');
+// Configure multer storage based on environment (Cloudinary vs local)
+let storage;
 
-if (!fs.existsSync(brandsDir)) {
-  fs.mkdirSync(brandsDir, { recursive: true });
-}
+if (process.env.CLOUDINARY_CLOUD_NAME) {
+  // Use memory storage for Cloudinary uploads
+  storage = multer.memoryStorage();
+} else {
+  // Use disk storage for local development
+  const frontendPublicPath = path.join(__dirname, '../../../../../frontend/public');
+  const brandsDir = path.join(frontendPublicPath, 'brands');
 
-// Configure multer storage for image uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, brandsDir);
-  },
-  filename: function (req, file, cb) {
-    // Generate a unique filename
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'brand-' + uniqueSuffix + path.extname(file.originalname));
+  if (!fs.existsSync(brandsDir)) {
+    fs.mkdirSync(brandsDir, { recursive: true });
   }
-});
+
+  storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+      cb(null, brandsDir);
+    },
+    filename: function (req, file, cb) {
+      // Generate a unique filename
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, 'brand-' + uniqueSuffix + path.extname(file.originalname));
+    }
+  });
+}
 
 const upload = multer({
   storage: storage,
@@ -46,6 +53,7 @@ const router = Router();
 
 // Routes for brands
 router.get('/', verifyDualAuth, brandController.getAllBrands);
+router.get('/dropdown', verifyDualAuth, brandController.getBrandsForDropdown);
 router.get('/:id', verifyDualAuth, brandController.getBrandById);
 router.post('/', verifyDualAuth, upload.single('image'), brandController.createBrand);
 router.put('/:id', verifyDualAuth, upload.single('image'), brandController.updateBrand);

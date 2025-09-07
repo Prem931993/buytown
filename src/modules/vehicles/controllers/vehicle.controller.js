@@ -9,6 +9,15 @@ export async function getVehicles(req, res) {
   }
 }
 
+export async function getVehiclesWithDeliveryPersons(req, res) {
+  try {
+    const vehicles = await vehicleModel.getVehiclesWithDeliveryPersonCount();
+    res.json(vehicles);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch vehicles with delivery persons' });
+  }
+}
+
 export async function getVehicle(req, res) {
   try {
     const vehicle = await vehicleModel.getVehicleById(req.params.id);

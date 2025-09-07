@@ -19,17 +19,25 @@ if (!fs.existsSync(categoriesDir)) {
   fs.mkdirSync(categoriesDir, { recursive: true });
 }
 
-// Configure multer storage
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, categoriesDir);
-  },
-  filename: function (req, file, cb) {
-    // Generate a unique filename
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'category-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+// Configure multer storage based on environment (Cloudinary vs local)
+let storage;
+
+if (process.env.CLOUDINARY_CLOUD_NAME) {
+  // Use memory storage for Cloudinary uploads
+  storage = multer.memoryStorage();
+} else {
+  // Use disk storage for local development
+  storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+      cb(null, categoriesDir);
+    },
+    filename: function (req, file, cb) {
+      // Generate a unique filename
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, 'category-' + uniqueSuffix + path.extname(file.originalname));
+    }
+  });
+}
 
 const upload = multer({
   storage: storage,
@@ -46,6 +54,7 @@ const router = Router();
 
 // Routes for categories
 router.get('/', verifyDualAuth, categoryController.getAllCategories);
+router.get('/dropdown', verifyDualAuth, categoryController.getCategoriesForDropdown);
 router.get('/root', verifyDualAuth, categoryController.getRootCategories);
 router.get('/:id', verifyDualAuth, categoryController.getCategoryById);
 router.get('/:parentId/children', verifyDualAuth, categoryController.getChildCategories);

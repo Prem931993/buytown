@@ -4,12 +4,10 @@ import knex from '../../../config/db.js';
 const { verify } = jwt;
 
 export default async function verifyDualAuth(req, res, next) {
-  console.log("verifyDualAuth - Headers:", req.headers);
   const authHeader = req.headers['authorization'];
   const adminTokenHeader = req.headers['x-admin-token'];
 
   if (!authHeader || !adminTokenHeader) {
-            console.log("decodedAccess", 'Missing authorization headers');
     return res.status(401).json({ error: 'Missing authorization headers' });
   }
 
@@ -18,7 +16,6 @@ export default async function verifyDualAuth(req, res, next) {
   const adminToken = adminTokenHeader.startsWith('Bearer ') ? adminTokenHeader.slice(7) : adminTokenHeader;
 
   if (!accessToken || !adminToken) {
-        console.log("decodedAccess", 'Invalid authorization header format');
     return res.status(401).json({ error: 'Invalid authorization header format' });
   }
 
@@ -58,7 +55,6 @@ export default async function verifyDualAuth(req, res, next) {
 
     next();
   } catch (err) {
-    console.log("err",err)
     console.error('verifyDualAuth - Token verification error:', err.message);
     return res.status(401).json({ error: 'Invalid access token' });
   }

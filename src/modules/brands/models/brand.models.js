@@ -75,18 +75,26 @@ export async function getBrandsCount({ search = '' } = {}) {
 // Get all brands with pagination and search
 export async function getAllBrandsPaginated({ page = 1, limit = 10, search = '' } = {}) {
   let query = knex('byt_brands').where({ is_active: true });
-  
+
   // Add search functionality
   if (search) {
     query = query.where('name', 'ilike', `%${search}%`);
   }
-  
+
   // Add ordering
   query = query.orderBy('name');
-  
+
   // Add pagination
   const offset = (page - 1) * limit;
   query = query.limit(limit).offset(offset);
-  
+
   return query;
+}
+
+// Get brands for dropdown (no pagination, just id and name)
+export async function getBrandsForDropdown() {
+  return knex('byt_brands')
+    .select('id', 'name')
+    .where({ is_active: true })
+    .orderBy('name');
 }

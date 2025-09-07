@@ -409,3 +409,218 @@ export async function setPasswordService(userId, newPassword, userAgent, ip, otp
     refreshToken
   };
 }
+
+// User Forgot Password Service - sends OTP via SMS
+export async function userForgotPasswordService(phone_no, req) {
+  // Validate input
+  if (!phone_no) {
+    return { error: 'Phone number is required.', status: 400 };
+  }
+
+  // Find user by phone number
+  const user = await models.findUserByPhone(phone_no);
+  if (!user) {
+    return { error: 'No account found with this phone number.', status: 404 };
+  }
+
+  // Check if user has a password set (only allow reset if password exists)
+  if (!user.password) {
+    return { error: 'Password not set for this account. Please contact support.', status: 400 };
+  }
+
+  // Check OTP send attempts for rate limiting
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+
+  // Count OTP sends today for this phone
+  const otpSendsToday = await smsModels.countOtpSendsToday(phone_no, today);
+  if (otpSendsToday >= 5) {
+    return { error: 'OTP send limit reached for today. Please try again tomorrow.', status: 429 };
+  }
+
+  // Check last OTP send time for cooldown
+  const lastOtpSend = await smsModels.getLastOtpSend(phone_no);
+  if (lastOtpSend && new Date(lastOtpSend.attempt_date) > oneMinuteAgo) {
+    return { error: 'Please wait at least 1 minute before requesting another OTP.', status: 429 };
+  }
+
+  // Generate and send OTP
+  const otp = smsServices.generateOtp();
+  const sendResult = await smsServices.sendOtp(phone_no, user.email, otp);
+
+  if (!sendResult.success) {
+    return { error: sendResult.error || 'Failed to send OTP. Please try again.', status: 500 };
+  }
+
+  // Log OTP send attempt
+  await smsModels.logOtpSendAttempt(phone_no, user.id);
+
+  return {
+    message: 'OTP sent successfully to your phone number.',
+    otp: otp, // For testing purposes; remove in production
+    status: 200,
+    user: {
+      id: user.id,
+      phone_no: user.phone_no,
+      email: user.email
+    }
+  };
+}
+
+// User Reset Password Service - verifies OTP and resets password
+export async function userResetPasswordService(phone_no, otp, newPassword, req) {
+  // Validate input
+  if (!phone_no || !otp || !newPassword) {
+    return { error: 'Phone number, OTP, and new password are required.', status: 400 };
+  }
+
+  // Validate password strength
+  if (newPassword.length < 4) {
+    return { error: 'Password must be at least 4 characters long.', status: 400 };
+  }
+
+  // Find user by phone number
+  const user = await models.findUserByPhone(phone_no);
+  if (!user) {
+    return { error: 'No account found with this phone number.', status: 404 };
+  }
+
+  // Verify OTP
+  const otpVerification = await smsServices.verifyOtp(phone_no, otp);
+  if (!otpVerification.success) {
+    return { error: otpVerification.error, status: 400 };
+  }
+
+  // Hash new password
+  const hashedPassword = await helpers.hashPassword(newPassword);
+
+  // Update user password
+  await models.updateUserPassword(user.id, hashedPassword);
+
+  return {
+    message: 'Password reset successfully. You can now log in with your new password.',
+    status: 200,
+    user: {
+      id: user.id,
+      phone_no: user.phone_no,
+      email: user.email
+    }
+  };
+}
+
+// User Resend OTP for Forgot Password Service
+export async function userResendForgotPasswordOtpService(phone_no, req) {
+  // Validate input
+  if (!phone_no) {
+    return { error: 'Phone number is required.', status: 400 };
+  }
+
+  // Find user by phone number
+  const user = await models.findUserByPhone(phone_no);
+  if (!user) {
+    return { error: 'No account found with this phone number.', status: 404 };
+  }
+
+  // Check if user has a password set (only allow reset if password exists)
+  if (!user.password) {
+    return { error: 'Password not set for this account. Please contact support.', status: 400 };
+  }
+
+  // Check OTP send attempts for rate limiting
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+
+  // Count OTP sends today for this phone
+  const otpSendsToday = await smsModels.countOtpSendsToday(phone_no, today);
+  if (otpSendsToday >= 5) {
+    return { error: 'OTP send limit reached for today. Please try again tomorrow.', status: 429 };
+  }
+
+  // Check last OTP send time for cooldown
+  const lastOtpSend = await smsModels.getLastOtpSend(phone_no);
+  if (lastOtpSend && new Date(lastOtpSend.attempt_date) > oneMinuteAgo) {
+    return { error: 'Please wait at least 1 minute before requesting another OTP.', status: 429 };
+  }
+
+  // Generate and send new OTP
+  const otp = smsServices.generateOtp();
+  const sendResult = await smsServices.sendOtp(phone_no, user.email, otp);
+
+  if (!sendResult.success) {
+    return { error: sendResult.error || 'Failed to send OTP. Please try again.', status: 500 };
+  }
+
+  // Log OTP send attempt
+  await smsModels.logOtpSendAttempt(phone_no, user.id);
+
+  return {
+    message: 'OTP resent successfully to your phone number.',
+    otp: otp, // For testing purposes; remove in production
+    status: 200,
+    user: {
+      id: user.id,
+      phone_no: user.phone_no,
+      email: user.email
+    }
+  };
+}
+
+// User Resend OTP for Set Password Service
+export async function userResendSetPasswordOtpService(phone_no, req) {
+  // Validate input
+  if (!phone_no) {
+    return { error: 'Phone number is required.', status: 400 };
+  }
+
+  // Find user by phone number
+  const user = await models.findUserByPhone(phone_no);
+  if (!user) {
+    return { error: 'No account found with this phone number.', status: 404 };
+  }
+
+  // Check if user already has a password set
+  if (user.password) {
+    return { error: 'Password already set for this user.', status: 400 };
+  }
+
+  // Check OTP send attempts for rate limiting
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+
+  // Count OTP sends today for this phone
+  const otpSendsToday = await smsModels.countOtpSendsToday(phone_no, today);
+  if (otpSendsToday >= 5) {
+    return { error: 'OTP send limit reached for today. Please try again tomorrow.', status: 429 };
+  }
+
+  // Check last OTP send time for cooldown
+  const lastOtpSend = await smsModels.getLastOtpSend(phone_no);
+  if (lastOtpSend && new Date(lastOtpSend.attempt_date) > oneMinuteAgo) {
+    return { error: 'Please wait at least 1 minute before requesting another OTP.', status: 429 };
+  }
+
+  // Generate and send new OTP
+  const otp = smsServices.generateOtp();
+  const sendResult = await smsServices.sendOtp(phone_no, user.email, otp);
+
+  if (!sendResult.success) {
+    return { error: sendResult.error || 'Failed to send OTP. Please try again.', status: 500 };
+  }
+
+  // Log OTP send attempt
+  await smsModels.logOtpSendAttempt(phone_no, user.id);
+
+  return {
+    message: 'OTP resent successfully to your phone number.',
+    otp: otp, // For testing purposes; remove in production
+    status: 200,
+    user: {
+      id: user.id,
+      phone_no: user.phone_no,
+      email: user.email
+    }
+  };
+}

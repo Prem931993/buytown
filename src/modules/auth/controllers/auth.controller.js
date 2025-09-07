@@ -182,14 +182,14 @@ export async function verifyToken(req, res) {
     // The token is already verified by the middleware
     // If we reach here, the token is valid
     const user = req.user;
-    
+
     // Get full user details
     const userDetails = await services.getUserDetailsById(user.id);
-    
+
     if (!userDetails) {
       return res.status(404).json({ statusCode: 404, error: 'User not found' });
     }
-    
+
     return res.status(200).json({
       statusCode: 200,
       user: {
@@ -205,4 +205,38 @@ export async function verifyToken(req, res) {
     console.error('Error in verify token:', error);
     return res.status(401).json({ statusCode: 401, error: 'Invalid token' });
   }
+}
+
+// User Forgot Password Controller - sends OTP via SMS
+export async function userForgotPassword(req, res) {
+  const { phone_no } = req.body;
+  const result = await services.userForgotPasswordService(phone_no, req);
+  setAuditLog(req, {
+    userId: result.user?.id,
+    identity: phone_no,
+    attemptType: 'user_forgot_password',
+    success: !result.error,
+    role: result.user?.role_id
+  });
+  if (result.error) {
+    return res.status(result.status).json({ statusCode: result.status, error: result.error });
+  }
+  res.status(result.status).json({ statusCode: result.status, message: result.message, otp: result.otp }); // Include OTP in response for testing
+}
+
+// User Reset Password Controller - verifies OTP and resets password
+export async function userResetPassword(req, res) {
+  const { phone_no, otp, newPassword } = req.body;
+  const result = await services.userResetPasswordService(phone_no, otp, newPassword, req);
+  setAuditLog(req, {
+    userId: result.user?.id,
+    identity: phone_no,
+    attemptType: 'user_reset_password',
+    success: !result.error,
+    role: result.user?.role_id
+  });
+  if (result.error) {
+    return res.status(result.status).json({ statusCode: result.status, error: result.error });
+  }
+  res.status(result.status).json({ statusCode: result.status, message: result.message });
 }

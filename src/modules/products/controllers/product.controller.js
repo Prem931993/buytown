@@ -6,30 +6,14 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import fs from 'fs';
+import { uploadToCloudinary, deleteFromCloudinary, extractPublicIdFromUrl } from '../../../config/cloudinary.js';
 
 // Get the directory name
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Ensure the products directory exists in the frontend public folder
-const frontendPublicPath = path.join(__dirname, '../../../../../frontend/public');
-const productsDir = path.join(frontendPublicPath, 'products');
-
-if (!fs.existsSync(productsDir)) {
-  fs.mkdirSync(productsDir, { recursive: true });
-}
-
-// Configure multer storage for regular uploads
-const productStorage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, productsDir);
-  },
-  filename: function (req, file, cb) {
-    // Generate a unique filename
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'product-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+// Configure multer storage for memory (for Cloudinary upload)
+const productStorage = multer.memoryStorage();
 
 // Configure multer storage for import uploads (to memory)
 const importStorage = multer.memoryStorage();
@@ -126,22 +110,45 @@ export async function createProduct(req, res) {
 
     // Handle images if uploaded
     let images = [];
-    if (req.files) {
-      images = req.files.map((file, index) => ({
-        path: '/products/' + file.filename,
-        sort_order: index,
-        is_primary: index === 0
-      }));
+    if (req.files && req.files.length > 0) {
+      try {
+        // Upload images to Cloudinary
+        for (let i = 0; i < req.files.length; i++) {
+          const file = req.files[i];
+          let fileData;
+          if (file.buffer) {
+            // Memory storage - use buffer
+            fileData = file.buffer;
+          } else if (file.path) {
+            // Disk storage - use file path
+            fileData = file.path;
+          } else {
+            throw new Error('No file data available');
+          }
+
+          const cloudinaryResult = await uploadToCloudinary(fileData, 'products');
+          images.push({
+            path: cloudinaryResult.secure_url,
+            sort_order: i,
+            is_primary: i === 0
+          });
+        }
+      } catch (uploadError) {
+        console.error('Error uploading to Cloudinary:', uploadError);
+        return res.status(500).json({ statusCode: 500, error: 'Failed to upload images' });
+      }
     }
 
     const result = await services.createProductService(productData, images, variations, childProductIds);
     if (result.error) {
-      // If there's an error and files were uploaded, remove the uploaded files
-      if (req.files) {
-        req.files.forEach(file => {
-          const imagePath = path.join(productsDir, file.filename);
-          if (fs.existsSync(imagePath)) {
-            fs.unlinkSync(imagePath);
+      // If there's an error and files were uploaded to Cloudinary, delete them
+      if (images.length > 0) {
+        images.forEach(async (image) => {
+          try {
+            const publicId = extractPublicIdFromUrl(image.path);
+            await deleteFromCloudinary(publicId);
+          } catch (deleteError) {
+            console.error('Error deleting from Cloudinary:', deleteError);
           }
         });
       }
@@ -197,21 +204,45 @@ export async function updateProduct(req, res) {
     // Only update images if files were actually uploaded
     let images = null;
     if (req.files && req.files.length > 0) {
-      images = req.files.map((file, index) => ({
-        path: '/products/' + file.filename,
-        sort_order: index,
-        is_primary: index === 0
-      }));
+      try {
+        // Upload images to Cloudinary
+        images = [];
+        for (let i = 0; i < req.files.length; i++) {
+          const file = req.files[i];
+          let fileData;
+          if (file.buffer) {
+            // Memory storage - use buffer
+            fileData = file.buffer;
+          } else if (file.path) {
+            // Disk storage - use file path
+            fileData = file.path;
+          } else {
+            throw new Error('No file data available');
+          }
+
+          const cloudinaryResult = await uploadToCloudinary(fileData, 'products');
+          images.push({
+            path: cloudinaryResult.secure_url,
+            sort_order: i,
+            is_primary: i === 0
+          });
+        }
+      } catch (uploadError) {
+        console.error('Error uploading to Cloudinary:', uploadError);
+        return res.status(500).json({ statusCode: 500, error: 'Failed to upload images' });
+      }
     }
 
     const result = await services.updateProductService(id, productData, images, variations, imagesToRemove, childProductIds);
     if (result.error) {
-      // If there's an error and files were uploaded, remove the uploaded files
-      if (req.files) {
-        req.files.forEach(file => {
-          const imagePath = path.join(productsDir, file.filename);
-          if (fs.existsSync(imagePath)) {
-            fs.unlinkSync(imagePath);
+      // If there's an error and files were uploaded to Cloudinary, delete them
+      if (images && images.length > 0) {
+        images.forEach(async (image) => {
+          try {
+            const publicId = extractPublicIdFromUrl(image.path);
+            await deleteFromCloudinary(publicId);
+          } catch (deleteError) {
+            console.error('Error deleting from Cloudinary:', deleteError);
           }
         });
       }

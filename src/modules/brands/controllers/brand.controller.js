@@ -4,13 +4,17 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import fs from 'fs';
+import { uploadToCloudinary, deleteFromCloudinary, extractPublicIdFromUrl } from '../../../config/cloudinary.js';
 
 // Get the directory name
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Configure multer for file uploads
-const upload = multer({ limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB limit
+// Configure multer for memory storage (for Cloudinary upload)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
 
 // Get all brands with pagination and search
 export async function getAllBrands(req, res) {
@@ -53,19 +57,26 @@ export async function createBrand(req, res) {
   try {
     const brandData = req.body;
     
-    // If image file is uploaded, add it to brand data with the correct path
+    // If image file is uploaded, upload to Cloudinary
     if (req.file) {
-      brandData.image = '/brands/' + req.file.filename;
+      try {
+        const cloudinaryResult = await uploadToCloudinary(req.file.buffer, 'brands');
+        brandData.image = cloudinaryResult.secure_url;
+      } catch (uploadError) {
+        console.error('Error uploading to Cloudinary:', uploadError);
+        return res.status(500).json({ statusCode: 500, error: 'Failed to upload image' });
+      }
     }
     
     const result = await services.createBrandService(brandData);
     if (result.error) {
-      // If there's an error and a file was uploaded, remove the uploaded file
-      if (req.file) {
-        const frontendPublicPath = path.join(__dirname, '../../../../../frontend/public');
-        const imagePath = path.join(frontendPublicPath, 'brands', req.file.filename);
-        if (fs.existsSync(imagePath)) {
-          fs.unlinkSync(imagePath);
+      // If there's an error and a file was uploaded to Cloudinary, delete it
+      if (req.file && brandData.image) {
+        try {
+          const publicId = extractPublicIdFromUrl(brandData.image);
+          await deleteFromCloudinary(publicId);
+        } catch (deleteError) {
+          console.error('Error deleting from Cloudinary:', deleteError);
         }
       }
       return res.status(result.status).json({ statusCode: result.status, error: result.error });
@@ -85,19 +96,26 @@ export async function updateBrand(req, res) {
     // Get the existing brand to check if there's an old image to remove
     const existingBrand = await services.getBrandByIdService(id);
     
-    // If image file is uploaded, add it to brand data with the correct path
+    // If image file is uploaded, upload to Cloudinary
     if (req.file) {
-      brandData.image = '/brands/' + req.file.filename;
+      try {
+        const cloudinaryResult = await uploadToCloudinary(req.file.buffer, 'brands');
+        brandData.image = cloudinaryResult.secure_url;
+      } catch (uploadError) {
+        console.error('Error uploading to Cloudinary:', uploadError);
+        return res.status(500).json({ statusCode: 500, error: 'Failed to upload image' });
+      }
     }
     
     const result = await services.updateBrandService(id, brandData);
     if (result.error) {
-      // If there's an error and a new file was uploaded, remove the uploaded file
-      if (req.file) {
-        const frontendPublicPath = path.join(__dirname, '../../../../../frontend/public');
-        const imagePath = path.join(frontendPublicPath, 'brands', req.file.filename);
-        if (fs.existsSync(imagePath)) {
-          fs.unlinkSync(imagePath);
+      // If there's an error and a new file was uploaded to Cloudinary, delete it
+      if (req.file && brandData.image) {
+        try {
+          const publicId = extractPublicIdFromUrl(brandData.image);
+          await deleteFromCloudinary(publicId);
+        } catch (deleteError) {
+          console.error('Error deleting from Cloudinary:', deleteError);
         }
       }
       return res.status(result.status).json({ statusCode: result.status, error: result.error });
@@ -105,10 +123,11 @@ export async function updateBrand(req, res) {
     
     // If the update was successful and a new image was uploaded, remove the old image
     if (req.file && existingBrand.brand && existingBrand.brand.image) {
-      const frontendPublicPath = path.join(__dirname, '../../../../../frontend/public');
-      const oldImagePath = path.join(frontendPublicPath, existingBrand.brand.image);
-      if (fs.existsSync(oldImagePath)) {
-        fs.unlinkSync(oldImagePath);
+      try {
+        const oldPublicId = extractPublicIdFromUrl(existingBrand.brand.image);
+        await deleteFromCloudinary(oldPublicId);
+      } catch (deleteError) {
+        console.error('Error deleting old image from Cloudinary:', deleteError);
       }
     }
     
@@ -131,16 +150,30 @@ export async function deleteBrand(req, res) {
       return res.status(result.status).json({ statusCode: result.status, error: result.error });
     }
     
-    // If the deletion was successful and there was an image, remove the image file
+    // If the deletion was successful and there was an image, remove the image file from Cloudinary
     if (existingBrand.brand && existingBrand.brand.image) {
-      const frontendPublicPath = path.join(__dirname, '../../../../../frontend/public');
-      const imagePath = path.join(frontendPublicPath, existingBrand.brand.image);
-      if (fs.existsSync(imagePath)) {
-        fs.unlinkSync(imagePath);
+      try {
+        const publicId = extractPublicIdFromUrl(existingBrand.brand.image);
+        await deleteFromCloudinary(publicId);
+      } catch (deleteError) {
+        console.error('Error deleting image from Cloudinary:', deleteError);
       }
     }
     
     res.status(result.status).json({ statusCode: result.status, message: result.message });
+  } catch (error) {
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
+
+// Get brands for dropdown (no pagination, just id and name)
+export async function getBrandsForDropdown(req, res) {
+  try {
+    const result = await services.getBrandsForDropdownService();
+    if (result.error) {
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+    res.status(result.status).json({ statusCode: result.status, brands: result.brands });
   } catch (error) {
     res.status(500).json({ statusCode: 500, error: 'Internal server error' });
   }
@@ -181,4 +214,3 @@ export async function importBrandsFromExcel(req, res) {
 }
 
 // Export multer upload middleware
-export { upload };

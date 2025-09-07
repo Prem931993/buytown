@@ -2,20 +2,22 @@ import knex from '../../../config/db.js';
 
 // Get all categories with pagination and search
 export async function getAllCategories({ page = 1, limit = 10, search = '' } = {}) {
-  let query = knex('byt_categories').where({ is_active: true });
-  
+  let query = knex('byt_categories')
+    .select('*', knex.raw('CAST(is_active AS INTEGER) as status'))
+    .where({ is_active: true });
+
   // Add search functionality
   if (search) {
     query = query.where('name', 'ilike', `%${search}%`);
   }
-  
+
   // Add ordering
   query = query.orderBy('name');
-  
+
   // Add pagination
   const offset = (page - 1) * limit;
   query = query.limit(limit).offset(offset);
-  
+
   return query;
 }
 
@@ -35,6 +37,7 @@ export async function getCategoriesCount({ search = '' } = {}) {
 // Get category by ID
 export async function getCategoryById(id) {
   return knex('byt_categories')
+    .select('*', knex.raw('CAST(is_active AS INTEGER) as status'))
     .where({ id, is_active: true })
     .first();
 }
@@ -82,6 +85,14 @@ export async function deleteCategory(id) {
 export async function getChildCategories(parentId) {
   return knex('byt_categories')
     .where({ parent_id: parentId, is_active: true })
+    .orderBy('name');
+}
+
+// Get categories for dropdown (no pagination, just id and name)
+export async function getCategoriesForDropdown() {
+  return knex('byt_categories')
+    .select('id', 'name')
+    .where({ is_active: true })
     .orderBy('name');
 }
 
