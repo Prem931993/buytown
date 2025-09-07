@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
-    "migrate": "npx knex migrate:latest && npx knex seed:run"
+    "migrate": "npx knex migrate:latest"
   },
   "keywords": [],
   "author": "",
