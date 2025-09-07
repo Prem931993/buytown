@@ -39,6 +39,14 @@ export const createUser = async (req, res) => {
         // Process files if present (upload to Cloudinary or handle local storage)
         await processUserFiles(req);
 
+        // Handle vehicle_ids from FormData (array format)
+        if (req.body && req.body['vehicle_ids[]']) {
+            const vehicleIds = Array.isArray(req.body['vehicle_ids[]'])
+                ? req.body['vehicle_ids[]']
+                : [req.body['vehicle_ids[]']];
+            userData.vehicle_ids = vehicleIds.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
+        }
+
         const userId = await userService.createUser(userData);
         res.status(201).json({ id: userId, message: 'User created successfully' });
     } catch (error) {
@@ -54,6 +62,14 @@ export const updateUser = async (req, res) => {
 
         // Process files if present (upload to Cloudinary or handle local storage)
         await processUserFiles(req);
+
+        // Handle vehicle_ids from FormData (array format)
+        if (req.body && req.body['vehicle_ids[]']) {
+            const vehicleIds = Array.isArray(req.body['vehicle_ids[]'])
+                ? req.body['vehicle_ids[]']
+                : [req.body['vehicle_ids[]']];
+            userData.vehicle_ids = vehicleIds.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
+        }
 
         const user = await userService.updateUser(req.params.id, userData);
         if (!user) {

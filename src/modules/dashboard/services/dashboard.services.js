@@ -54,6 +54,15 @@ export async function getMostUsedDeliveryVehicles() {
   }
 }
 
+export async function getTopCustomers(limit = 10) {
+  try {
+    const result = await models.getTopCustomers(limit);
+    return result;
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
 export async function getTotalProductsCount() {
   try {
     const result = await models.getTotalProductsCount();

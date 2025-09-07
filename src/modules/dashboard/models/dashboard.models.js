@@ -107,6 +107,31 @@ export async function getMostUsedDeliveryVehicles() {
   }
 }
 
+// Get top customers by order count
+export async function getTopCustomers(limit = 10) {
+  try {
+    const customers = await db('byt_orders')
+      .leftJoin('byt_users', 'byt_orders.user_id', 'byt_users.id')
+      .select(
+        'byt_users.id',
+        'byt_users.firstname',
+        'byt_users.lastname',
+        'byt_users.email',
+        'byt_users.phone_no'
+      )
+      .count('byt_orders.id as order_count')
+      .sum('byt_orders.total_amount as total_spent')
+      .whereNotNull('byt_orders.user_id')
+      .groupBy('byt_users.id', 'byt_users.firstname', 'byt_users.lastname', 'byt_users.email', 'byt_users.phone_no')
+      .orderBy('order_count', 'desc')
+      .limit(limit);
+
+    return { success: true, customers };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
 // Get total products count
 export async function getTotalProductsCount() {
   try {
@@ -213,7 +238,8 @@ export async function getDashboardSummary() {
       lowStockProducts,
       recentSales,
       popularProducts,
-      deliveryVehicles
+      deliveryVehicles,
+      topCustomers
     ] = await Promise.all([
       getOrdersAwaitingConfirmationCount(),
       getTotalProductsCount(),
@@ -223,7 +249,8 @@ export async function getDashboardSummary() {
       getLowStockProducts(5),
       getRecentSales(30),
       getPopularProducts(5),
-      getMostUsedDeliveryVehicles()
+      getMostUsedDeliveryVehicles(),
+      getTopCustomers(5)
     ]);
 
     return {
@@ -237,7 +264,8 @@ export async function getDashboardSummary() {
         lowStockProducts: lowStockProducts.success ? lowStockProducts.products : [],
         recentSales: recentSales.success ? recentSales.sales : [],
         popularProducts: popularProducts.success ? popularProducts.products : [],
-        deliveryVehicles: deliveryVehicles.success ? deliveryVehicles.vehicles : []
+        deliveryVehicles: deliveryVehicles.success ? deliveryVehicles.vehicles : [],
+        topCustomers: topCustomers.success ? topCustomers.customers : []
       }
     };
   } catch (error) {

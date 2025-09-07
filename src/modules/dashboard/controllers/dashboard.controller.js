@@ -7,7 +7,9 @@ export async function getDashboardSummary(req, res) {
     if (result.success) {
       res.json({
         success: true,
-        data: result.summary
+        data: {
+          summary: result.summary
+        }
       });
     } else {
       res.status(400).json({
@@ -30,7 +32,9 @@ export async function getOrdersAwaitingConfirmationCount(req, res) {
     if (result.success) {
       res.json({
         success: true,
-        count: result.count
+        data: {
+          count: result.count
+        }
       });
     } else {
       res.status(400).json({
@@ -54,7 +58,9 @@ export async function getLowStockProducts(req, res) {
     if (result.success) {
       res.json({
         success: true,
-        products: result.products
+        data: {
+          products: result.products
+        }
       });
     } else {
       res.status(400).json({
@@ -78,7 +84,9 @@ export async function getRecentSales(req, res) {
     if (result.success) {
       res.json({
         success: true,
-        sales: result.sales
+        data: {
+          sales: result.sales
+        }
       });
     } else {
       res.status(400).json({
@@ -102,7 +110,9 @@ export async function getPopularProducts(req, res) {
     if (result.success) {
       res.json({
         success: true,
-        products: result.products
+        data: {
+          products: result.products
+        }
       });
     } else {
       res.status(400).json({
@@ -125,7 +135,9 @@ export async function getMostUsedDeliveryVehicles(req, res) {
     if (result.success) {
       res.json({
         success: true,
-        vehicles: result.vehicles
+        data: {
+          vehicles: result.vehicles
+        }
       });
     } else {
       res.status(400).json({
@@ -264,6 +276,30 @@ export async function getOrderStatistics(req, res) {
       res.json({
         success: true,
         stats: result.stats
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+}
+
+export async function getTopCustomers(req, res) {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    const result = await services.getTopCustomers(limit);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        customers: result.customers
       });
     } else {
       res.status(400).json({

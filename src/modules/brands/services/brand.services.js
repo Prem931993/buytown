@@ -108,6 +108,16 @@ export async function deleteBrandService(id) {
   }
 }
 
+// Get brands for dropdown (no pagination, just id and name)
+export async function getBrandsForDropdownService() {
+  try {
+    const brands = await models.getBrandsForDropdown();
+    return { brands, status: 200 };
+  } catch (error) {
+    return { error: error.message, status: 500 };
+  }
+}
+
 // Import brands from Excel file
 export async function importBrandsFromExcelService(fileBuffer) {
   try {

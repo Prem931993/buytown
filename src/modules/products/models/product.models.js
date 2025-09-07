@@ -1,7 +1,7 @@
 import knex from '../../../config/db.js';
 
 // Get all products with pagination and search
-export async function getAllProducts({ page = 1, limit = 10, search = '', categoryId = null, brandId = null } = {}) {
+export async function getAllProducts({ page = 1, limit = 10, search = '', categoryId = null, brandId = null, minPrice = null, maxPrice = null } = {}) {
   let query = knex('byt_products')
     .leftJoin('byt_categories as parent_categories', 'byt_products.category_id', 'parent_categories.id')
     .leftJoin('byt_categories as sub_categories', 'byt_products.subcategory_id', 'sub_categories.id')
@@ -27,6 +27,15 @@ export async function getAllProducts({ page = 1, limit = 10, search = '', catego
   // Add brand filter
   if (brandId) {
     query = query.where('byt_products.brand_id', brandId);
+  }
+
+  // Add price range filters
+  if (minPrice !== null) {
+    query = query.where('byt_products.price', '>=', minPrice);
+  }
+
+  if (maxPrice !== null) {
+    query = query.where('byt_products.price', '<=', maxPrice);
   }
 
   // Add ordering
@@ -224,6 +233,25 @@ export async function updateProductVariations(productId, variations) {
 // Delete a single product image by ID
 export async function deleteProductImage(imageId) {
   return knex('byt_product_images').where({ id: imageId }).del();
+}
+
+// Get product images by product ID
+export async function getProductImages(productId) {
+  return knex('byt_product_images')
+    .where('product_id', productId)
+    .orderBy('sort_order');
+}
+
+// Get product variations by product ID
+export async function getProductVariations(productId) {
+  return knex('byt_product_variations')
+    .leftJoin('byt_variations', 'byt_product_variations.variation_id', 'byt_variations.id')
+    .select(
+      'byt_product_variations.*',
+      'byt_variations.label as variation_label',
+      'byt_variations.value as variation_value'
+    )
+    .where('byt_product_variations.product_id', productId);
 }
 
 // Add child products to a parent product

@@ -1,0 +1,36 @@
+import * as services from '../services/userProduct.services.js';
+
+export async function getUserProducts(req, res) {
+  try {
+    const page = parseInt(req.body.page) || 1;
+    const limit = parseInt(req.body.limit) || 10;
+    const search = req.body.search || '';
+    const categoryId = req.body.category_id ? parseInt(req.body.category_id) : null;
+    const brandId = req.body.brand_id ? parseInt(req.body.brand_id) : null;
+    const minPrice = req.body.min_price ? parseFloat(req.body.min_price) : null;
+    const maxPrice = req.body.max_price ? parseFloat(req.body.max_price) : null;
+
+    const result = await services.getUserProductsService({
+      page,
+      limit,
+      search,
+      categoryId,
+      brandId,
+      minPrice,
+      maxPrice
+    });
+
+    if (result.error) {
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+
+    res.status(result.status).json({
+      statusCode: result.status,
+      products: result.products,
+      pagination: result.pagination
+    });
+  } catch (error) {
+    console.error('Error in getUserProducts:', error);
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}

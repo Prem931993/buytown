@@ -1,11 +1,49 @@
 import db from '../../../config/db.js';
 
 export const getAllUsers = async () => {
-    return await db('byt_users').select('*');
+    const users = await db('byt_users').select('*');
+
+    // Get vehicle assignments for all users
+    const userIds = users.map(user => user.id);
+    if (userIds.length > 0) {
+        const vehicleAssignments = await db('byt_user_vehicle')
+            .join('byt_vehicle_management', 'byt_user_vehicle.vehicle_id', 'byt_vehicle_management.id')
+            .whereIn('byt_user_vehicle.user_id', userIds)
+            .select('byt_user_vehicle.user_id', 'byt_vehicle_management.*');
+
+        // Group vehicles by user_id
+        const vehiclesByUser = {};
+        vehicleAssignments.forEach(assignment => {
+            if (!vehiclesByUser[assignment.user_id]) {
+                vehiclesByUser[assignment.user_id] = [];
+            }
+            vehiclesByUser[assignment.user_id].push(assignment);
+        });
+
+        // Add vehicles to each user
+        users.forEach(user => {
+            user.vehicles = vehiclesByUser[user.id] || [];
+        });
+    }
+
+    return users;
 };
 
 export const getUserById = async (id) => {
-    return await db('byt_users').where({ id }).first();
+    const user = await db('byt_users').where({ id }).first();
+
+    if (!user) return null;
+
+    // Get assigned vehicles for the user
+    const vehicles = await db('byt_user_vehicle')
+        .join('byt_vehicle_management', 'byt_user_vehicle.vehicle_id', 'byt_vehicle_management.id')
+        .where('byt_user_vehicle.user_id', id)
+        .select('byt_vehicle_management.*');
+
+    return {
+        ...user,
+        vehicles: vehicles || []
+    };
 };
 
 export const createUser = async (userData) => {
@@ -35,6 +73,19 @@ export const createUser = async (userData) => {
     gstin = gstin && gstin.trim() !== '' ? gstin.trim() : null;
     address = address && address.trim() !== '' ? address.trim() : null;
 
+    // Convert status string to smallint if needed
+    if (typeof status === 'string') {
+        if (status.toLowerCase() === 'active') {
+            status = 1;
+        } else if (status.toLowerCase() === 'inactive') {
+            status = 2;
+        } else if (status.toLowerCase() === 'suspended') {
+            status = 3;
+        } else {
+            status = 1; // default to active
+        }
+    }
+
     // If username is provided but firstname/lastname are not, split username
     if (username && username.trim() !== '' && (!firstname || firstname === '') && (!lastname || lastname === '')) {
         const nameParts = username.trim().split(' ');
@@ -55,7 +106,7 @@ export const createUser = async (userData) => {
         gstin,
         address,
         role_id: parseInt(role_id, 10), // Ensure role_id is a number
-        status: status === 'active', // Convert string to boolean
+        status: status, // status is already converted to boolean above
         profile_photo,
         license
     }).returning('id');
@@ -81,6 +132,19 @@ export const updateUser = async (id, userData) => {
         delete updateData.username; // Remove username from update data
     }
 
+    // Convert status string to smallint if provided
+    if (typeof updateData.status === 'string') {
+        if (updateData.status.toLowerCase() === 'active') {
+            updateData.status = 1;
+        } else if (updateData.status.toLowerCase() === 'inactive') {
+            updateData.status = 2;
+        } else if (updateData.status.toLowerCase() === 'suspended') {
+            updateData.status = 3;
+        } else {
+            updateData.status = 1; // default to active
+        }
+    }
+
     const [result] = await db('byt_users').where({ id }).update(updateData).returning('*');
     return result;
 };
@@ -90,3 +154,22 @@ export const deleteUser = async (id) => {
 };
 
 // Add more user-related database operations as needed
+
+export const assignVehiclesToUser = async (userId, vehicleIds) => {
+    if (!userId || !Array.isArray(vehicleIds)) {
+        throw new Error('Invalid parameters for assigning vehicles to user');
+    }
+
+    // First, delete existing vehicle assignments for the user
+    await db('byt_user_vehicle').where({ user_id: userId }).del();
+
+    // Insert new vehicle assignments
+    const insertData = vehicleIds.map(vehicleId => ({
+        user_id: userId,
+        vehicle_id: vehicleId
+    }));
+
+    if (insertData.length > 0) {
+        await db('byt_user_vehicle').insert(insertData);
+    }
+};

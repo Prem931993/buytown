@@ -51,4 +51,8 @@ router.post('/verify-admin-token', verifyDualAuth, (req, res) => {
   });
 });
 
+// New routes for user forgot password and reset password via phone and OTP
+router.post('/user/forgot-password', verifyApiToken(2), auditTrail, authController.userForgotPassword);
+router.post('/user/reset-password', verifyApiToken(2), auditTrail, authController.userResetPassword);
+
 export default router;

@@ -22,6 +22,9 @@ router.get('/popular-products', verifyDualAuth, controller.getPopularProducts);
 // Get most used delivery vehicles
 router.get('/delivery-vehicles', verifyDualAuth, controller.getMostUsedDeliveryVehicles);
 
+// Get top customers
+router.get('/top-customers', verifyDualAuth, controller.getTopCustomers);
+
 // Get total products count
 router.get('/total-products', verifyDualAuth, controller.getTotalProductsCount);
 

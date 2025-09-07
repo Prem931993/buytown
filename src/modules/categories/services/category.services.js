@@ -202,10 +202,34 @@ export async function getChildCategoriesService(parentId) {
   }
 }
 
+// Get categories for dropdown (no pagination, just id and name)
+export async function getCategoriesForDropdownService() {
+  try {
+    const categories = await models.getCategoriesForDropdown();
+    return { categories, status: 200 };
+  } catch (error) {
+    return { error: error.message, status: 500 };
+  }
+}
+
 // Get root categories (categories with no parent)
 export async function getRootCategoriesService() {
   try {
     const categories = await models.getRootCategories();
+    return { categories, status: 200 };
+  } catch (error) {
+    return { error: error.message, status: 500 };
+  }
+}
+
+// Get all enabled categories with images for users
+export async function getAllEnabledCategoriesWithImagesService() {
+  try {
+    const categories = await knex('byt_categories')
+      .select('id', 'name', 'description', 'image', 'parent_id')
+      .where({ is_active: true })
+      .orderBy('id', 'asc');
+
     return { categories, status: 200 };
   } catch (error) {
     return { error: error.message, status: 500 };

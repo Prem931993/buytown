@@ -112,12 +112,22 @@ export async function deleteVariationService(id) {
   }
 }
 
+// Get variations for dropdown (no pagination, just id and name)
+export async function getVariationsForDropdownService() {
+  try {
+    const variations = await models.getAllVariations();
+    return { variations, status: 200 };
+  } catch (error) {
+    return { error: error.message, status: 500 };
+  }
+}
+
 // Import variations from Excel file
 export async function importVariationsFromExcelService(fileBuffer) {
   try {
     const workbook = new Workbook();
     await workbook.xlsx.load(fileBuffer);
-    
+
     const worksheet = workbook.getWorksheet(1); // Get the first worksheet
     if (!worksheet) {
       return { error: 'No worksheet found in Excel file', status: 400 };
@@ -130,7 +140,7 @@ export async function importVariationsFromExcelService(fileBuffer) {
     // Process each row in the worksheet (skip header row)
     for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
       const row = worksheet.getRow(rowNumber);
-      
+
       // Skip empty rows
       if (!row || !row.getCell(1).value) {
         continue;

@@ -86,6 +86,19 @@ export async function deleteVariation(req, res) {
   }
 }
 
+// Get variations for dropdown (no pagination, just id and name)
+export async function getVariationsForDropdown(req, res) {
+  try {
+    const result = await services.getVariationsForDropdownService();
+    if (result.error) {
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+    res.status(result.status).json({ statusCode: result.status, variations: result.variations });
+  } catch (error) {
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
+
 // Import variations from Excel file
 export async function importVariationsFromExcel(req, res) {
   try {

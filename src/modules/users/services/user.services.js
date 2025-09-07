@@ -1,16 +1,39 @@
 import * as userModel from '../models/user.models.js';
+import * as roleModel from '../models/role.models.js';
+
+// Cache roles to avoid repeated database calls
+let rolesCache = null;
+let rolesCacheTimestamp = null;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+const getRoles = async () => {
+    const now = Date.now();
+    if (!rolesCache || !rolesCacheTimestamp || (now - rolesCacheTimestamp) > CACHE_DURATION) {
+        rolesCache = await roleModel.getAllRoles();
+        rolesCacheTimestamp = now;
+    }
+    return rolesCache;
+};
+
+const getRoleString = async (roleId) => {
+    const roles = await getRoles();
+    const role = roles.find(r => r.id === roleId);
+    return role ? role.name : 'user'; // Default to 'user' if role_id not found
+};
 
 export const getAllUsers = async () => {
     const users = await userModel.getAllUsers();
 
     // Transform the data to match frontend expectations
-    return users.map(user => ({
+    const transformedUsers = await Promise.all(users.map(async user => ({
         ...user,
         // Convert role_id to role string
-        role: getRoleString(user.role_id),
-        // Convert boolean status to string
-        status: user.status ? 'active' : 'inactive'
-    }));
+        role: await getRoleString(user.role_id),
+        // Convert smallint status to string
+        status: user.status === 1 ? 'active' : user.status === 2 ? 'inactive' : user.status === 3 ? 'suspended' : 'active'
+    })));
+
+    return transformedUsers;
 };
 
 export const getUserById = async (id) => {
@@ -22,20 +45,10 @@ export const getUserById = async (id) => {
     return {
         ...user,
         // Convert role_id to role string
-        role: getRoleString(user.role_id),
-        // Convert boolean status to string
-        status: user.status ? 'active' : 'inactive'
+        role: await getRoleString(user.role_id),
+        // Convert smallint status to string
+        status: user.status === 1 ? 'active' : user.status === 2 ? 'inactive' : user.status === 3 ? 'suspended' : 'active'
     };
-};
-
-// Helper function to convert role_id to role string
-const getRoleString = (roleId) => {
-    const roleMapping = {
-        1: 'admin',
-        2: 'user',
-        3: 'delivery_person'
-    };
-    return roleMapping[roleId] || 'user'; // Default to 'user' if role_id not found
 };
 
 export const createUser = async (userData) => {
@@ -44,23 +57,49 @@ export const createUser = async (userData) => {
         throw new Error('Invalid user data provided');
     }
 
-    // Map role string to role_id (same mapping as auth service)
-    const roleMapping = {
-        'admin': 1,
-        'user': 2,
-        'delivery_person': 3
-    };
-
     // Determine role_id from either role_id field or role string
     let role_id = userData.role_id;
     if (!role_id && userData.role) {
-        role_id = roleMapping[userData.role] || 2; // Default to user role (2)
+        const roles = await getRoles();
+        const role = roles.find(r => r.name === userData.role);
+        role_id = role ? role.id : 2; // Default to user role (2)
     }
     if (!role_id) {
         role_id = 2; // Default to user role if nothing provided
     }
 
     // Process the data to ensure all required fields are present
+    let processedStatus = userData.status !== undefined && userData.status !== null ? userData.status : 'active';
+
+    // Convert status to smallint if needed
+    if (typeof processedStatus === 'string') {
+        // Check if it's already a numeric string (like "2")
+        const numericValue = parseInt(processedStatus, 10);
+        if (!isNaN(numericValue) && numericValue >= 1 && numericValue <= 3) {
+            processedStatus = numericValue;
+        } else {
+            // Handle string status values
+            const statusStr = processedStatus.toLowerCase();
+            if (statusStr === 'active' || statusStr === 'true') {
+                processedStatus = 1;
+            } else if (statusStr === 'inactive' || statusStr === 'false') {
+                processedStatus = 2;
+            } else if (statusStr === 'suspended') {
+                processedStatus = 3;
+            } else {
+                processedStatus = 1; // default to active
+            }
+        }
+    } else if (typeof processedStatus === 'number') {
+        // Ensure it's within valid range
+        if (processedStatus < 1 || processedStatus > 3) {
+            processedStatus = 1; // default to active
+        }
+    } else {
+        // Default to active for any other type
+        processedStatus = 1;
+    }
+
     const processedData = {
         firstname: userData.firstname || '',
         lastname: userData.lastname || '',
@@ -70,13 +109,18 @@ export const createUser = async (userData) => {
         gstin: userData.gstin || null,
         address: userData.address || null,
         role_id: role_id,
-        status: userData.status || 'active',
+        status: processedStatus,
         profile_photo: userData.profile_photo || null,
         license: userData.license || null,
         username: userData.username || null
     };
 
     const userId = await userModel.createUser(processedData);
+
+    // Handle vehicle assignments if provided
+    if (userData.vehicle_ids && Array.isArray(userData.vehicle_ids) && userData.vehicle_ids.length > 0) {
+        await userModel.assignVehiclesToUser(userId, userData.vehicle_ids);
+    }
 
     // Get the created user and transform the response
     const createdUser = await userModel.getUserById(userId);
@@ -87,9 +131,9 @@ export const createUser = async (userData) => {
     return {
         ...createdUser,
         // Convert role_id to role string
-        role: getRoleString(createdUser.role_id),
-        // Convert boolean status to string
-        status: createdUser.status ? 'active' : 'inactive'
+        role: await getRoleString(createdUser.role_id),
+        // Convert smallint status to string
+        status: createdUser.status === 1 ? 'active' : createdUser.status === 2 ? 'inactive' : createdUser.status === 3 ? 'suspended' : 'active'
     };
 };
 
@@ -99,18 +143,53 @@ export const updateUser = async (id, userData) => {
 
     // If role string is provided, convert to role_id
     if (processedData.role && !processedData.role_id) {
-        const roleMapping = {
-            'admin': 1,
-            'user': 2,
-            'delivery_person': 3
-        };
-        processedData.role_id = roleMapping[processedData.role];
+        const roles = await getRoles();
+        const role = roles.find(r => r.name === processedData.role);
+        processedData.role_id = role ? role.id : 2; // Default to user role (2)
         delete processedData.role; // Remove role string after conversion
     }
 
-    // If status string is provided, convert to boolean
-    if (typeof processedData.status === 'string') {
-        processedData.status = processedData.status === 'active';
+    // If status is provided, ensure it's in the correct smallint format
+    if (processedData.status !== undefined && processedData.status !== null) {
+        // Handle both string and number inputs
+        if (typeof processedData.status === 'string') {
+            // Check if it's already a numeric string (like "2")
+            const numericValue = parseInt(processedData.status, 10);
+            if (!isNaN(numericValue) && numericValue >= 1 && numericValue <= 3) {
+                processedData.status = numericValue;
+            } else {
+                // Handle string status values
+                const statusStr = processedData.status.toLowerCase();
+                if (statusStr === 'active' || statusStr === 'true') {
+                    processedData.status = 1;
+                } else if (statusStr === 'inactive' || statusStr === 'false') {
+                    processedData.status = 2;
+                } else if (statusStr === 'suspended') {
+                    processedData.status = 3;
+                } else {
+                    processedData.status = 1; // default to active
+                }
+            }
+        } else if (typeof processedData.status === 'number') {
+            // Ensure it's within valid range
+            if (processedData.status < 1 || processedData.status > 3) {
+                processedData.status = 1; // default to active
+            }
+        } else {
+            // Default to active for any other type
+            processedData.status = 1;
+        }
+    }
+
+    // Handle vehicle assignments separately
+    if (processedData.vehicle_ids !== undefined) {
+        const vehicleIds = processedData.vehicle_ids;
+        delete processedData.vehicle_ids; // Remove from processedData to avoid passing to updateUser
+
+        // Update vehicle assignments
+        if (Array.isArray(vehicleIds)) {
+            await userModel.assignVehiclesToUser(id, vehicleIds);
+        }
     }
 
     const updatedUser = await userModel.updateUser(id, processedData);
@@ -121,9 +200,9 @@ export const updateUser = async (id, userData) => {
     return {
         ...updatedUser,
         // Convert role_id to role string
-        role: getRoleString(updatedUser.role_id),
-        // Convert boolean status to string
-        status: updatedUser.status ? 'active' : 'inactive'
+        role: await getRoleString(updatedUser.role_id),
+        // Convert smallint status to string
+        status: updatedUser.status === 1 ? 'active' : updatedUser.status === 2 ? 'inactive' : updatedUser.status === 3 ? 'suspended' : 'active'
     };
 };
 
