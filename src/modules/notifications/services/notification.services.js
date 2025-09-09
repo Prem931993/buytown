@@ -16,7 +16,7 @@ export const createOrderNotification = async (order, user) => {
     const adminNotification = {
       type: 'order',
       title: 'New Order Received',
-      message: `New order #${order.order_number} received from ${user.first_name} ${user.last_name} for $${order.total_amount}`,
+      message: `New order #${order.order_number} received from ${user.first_name} ${user.last_name} for ₹${order.total_amount}`,
       recipient_type: 'admin',
       recipient_id: null,
       reference_type: 'order',
@@ -56,7 +56,7 @@ export const sendOrderEmails = async (order, user) => {
         <p><strong>Customer:</strong> ${user.first_name} ${user.last_name}</p>
         <p><strong>Email:</strong> ${user.email}</p>
         <p><strong>Phone:</strong> ${user.phone}</p>
-        <p><strong>Total Amount:</strong> $${order.total_amount}</p>
+        <p><strong>Total Amount:</strong> ₹${order.total_amount}</p>
         <p><strong>Status:</strong> ${order.status}</p>
         <p>Please review and approve the order.</p>
       `
@@ -71,7 +71,7 @@ export const sendOrderEmails = async (order, user) => {
         <p>Dear ${user.first_name} ${user.last_name},</p>
         <p>Thank you for your order! Your order has been received and is being processed.</p>
         <p><strong>Order Number:</strong> ${order.order_number}</p>
-        <p><strong>Total Amount:</strong> $${order.total_amount}</p>
+        <p><strong>Total Amount:</strong> ₹${order.total_amount}</p>
         <p><strong>Status:</strong> ${order.status}</p>
         <p>You will receive updates on your order status via email and SMS.</p>
         <br>
@@ -96,10 +96,10 @@ export const sendOrderSMS = async (order, user) => {
   try {
     // Send SMS to admin
     const adminPhone = process.env.ADMIN_PHONE || '+1234567890';
-    const adminSMSMessage = `New order #${order.order_number} received from ${user.first_name} ${user.last_name} for $${order.total_amount}`;
+    const adminSMSMessage = `New order #${order.order_number} received from ${user.first_name} ${user.last_name} for ₹${order.total_amount}`;
 
     // Send SMS to user
-    const userSMSMessage = `Your order #${order.order_number} has been placed successfully. Total: $${order.total_amount}. Status: ${order.status}`;
+    const userSMSMessage = `Your order #${order.order_number} has been placed successfully. Total: ₹${order.total_amount}. Status: ${order.status}`;
 
     // Send SMS (assuming smsService has sendSMS method)
     if (smsService.sendSMS) {

@@ -25,4 +25,21 @@ router.get('/status/:status', verifyDualAuth, controller.getOrdersByStatus);
 // Get orders by user
 router.get('/user/:userId', verifyDualAuth, controller.getOrdersByUser);
 
+// Approve order
+router.put('/:id/approve', verifyDualAuth, controller.approveOrder);
+
+// Reject order
+router.put('/:id/reject', verifyDualAuth, controller.rejectOrder);
+
+// Assign delivery person
+router.put('/:id/assign-delivery', verifyDualAuth, controller.assignDeliveryPerson);
+
+// Mark order as completed
+router.put('/:id/complete', verifyDualAuth, controller.markOrderCompleted);
+
+// PDF Generation Routes
+router.post('/:id/generate-invoice-pdf', verifyDualAuth, controller.generateInvoicePDF);
+router.post('/:id/generate-confirmation-pdf', verifyDualAuth, controller.generateOrderConfirmationPDF);
+router.get('/:id/invoices', verifyDualAuth, controller.getInvoicesByOrder);
+
 export default router;

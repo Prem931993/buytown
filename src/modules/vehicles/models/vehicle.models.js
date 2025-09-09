@@ -4,7 +4,15 @@ const TABLE_NAME = 'byt_vehicle_management';
 const USER_VEHICLE_TABLE = 'byt_user_vehicle';
 
 export async function getAllVehicles() {
-  return knex(TABLE_NAME).where({ is_active: true });
+  const vehicles = await knex(TABLE_NAME).where({ is_active: true });
+
+  // Add delivery persons for each vehicle
+  for (let vehicle of vehicles) {
+    const deliveryPersons = await getDeliveryPersonsByVehicle(vehicle.id);
+    vehicle.deliveryPersons = deliveryPersons;
+  }
+
+  return vehicles;
 }
 
 export async function getVehicleById(id) {

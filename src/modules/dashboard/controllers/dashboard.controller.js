@@ -50,6 +50,31 @@ export async function getOrdersAwaitingConfirmationCount(req, res) {
   }
 }
 
+export async function getOrdersAwaitingConfirmationList(req, res) {
+  try {
+    const result = await services.getOrdersAwaitingConfirmationList();
+
+    if (result.success) {
+      res.json({
+        success: true,
+        data: {
+          orders: result.orders
+        }
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+}
+
 export async function getLowStockProducts(req, res) {
   try {
     const limit = parseInt(req.query.limit) || 10;

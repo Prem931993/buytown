@@ -85,7 +85,10 @@ export async function getOrderById(id) {
       shippingCost: parseFloat(firstRow.shipping_amount) || 0,
       tax: parseFloat(firstRow.tax_amount) || 0,
       discount: parseFloat(firstRow.discount_amount) || 0,
-      total: parseFloat(firstRow.total) || 0,
+      total: parseFloat(firstRow.total_amount) || 0,
+      deliveryDistance: parseFloat(firstRow.delivery_distance) || 0,
+      deliveryCharges: parseFloat(firstRow.delivery_charges) || 0,
+      deliveryPersonId: firstRow.delivery_person_id || null,
       shippingAddress: shippingAddress,
       billingAddress: billingAddress,
       items: [],
@@ -107,10 +110,23 @@ export async function getOrderById(id) {
           sku: row.product_sku || 'N/A',
           price: parseFloat(row.item_price) || 0,
           quantity: row.quantity || 0,
-          total: parseFloat(row.item_total) || 0
+          total: parseFloat(row.item_total) || 0,
+          type: 'product' // Mark as product item
         });
       }
     });
+
+    // Note: Delivery charges are now handled separately in the total calculation, not as an order item
+
+    // Add delivery charges as a separate field in the order summary breakup
+    orderDetails.deliveryChargesBreakup = {
+      subtotal: orderDetails.subtotal,
+      shipping: orderDetails.shippingCost,
+      tax: orderDetails.tax,
+      deliveryCharges: orderDetails.deliveryCharges,
+      discount: orderDetails.discount,
+      total: orderDetails.total
+    };
 
     return { success: true, order: orderDetails };
   } catch (error) {
@@ -172,7 +188,7 @@ export async function getAllOrders() {
           customer_email: row.email || 'N/A',
           customer_phone: row.phone_no || 'N/A',
           date: row.created_at ? new Date(row.created_at).toISOString().split('T')[0] : 'N/A',
-          total: parseFloat(row.total) || 0,
+          total: parseFloat(row.total_amount) || 0,
           status: row.status || 'Pending',
           payment_method: row.payment_method || 'N/A',
           payment_status: 'Paid', // Default assumption
@@ -182,6 +198,9 @@ export async function getAllOrders() {
           shipping_cost: parseFloat(row.shipping_amount) || 0,
           tax: parseFloat(row.tax_amount) || 0,
           discount: parseFloat(row.discount_amount) || 0,
+          delivery_distance: parseFloat(row.delivery_distance) || 0,
+          delivery_charges: parseFloat(row.delivery_charges) || 0,
+          delivery_person_id: row.delivery_person_id || null,
           shipping_address: shippingAddress,
           billing_address: billingAddress,
           items: [],
@@ -205,10 +224,13 @@ export async function getAllOrders() {
           price: parseFloat(row.item_price) || 0,
           quantity: row.quantity || 0,
           total: parseFloat(row.item_total) || 0,
-          variation: row.variation_name || null
+          variation: row.variation_name || null,
+          type: 'product' // Mark as product item
         });
       }
     });
+
+    // Note: Delivery charges are now handled separately in the total calculation, not as order items
 
     const detailedOrders = Array.from(ordersMap.values());
 
@@ -255,6 +277,154 @@ export async function getOrdersByUser(userId) {
 
     const filteredOrders = result.orders.filter(order => order.user_id === userId);
     return { success: true, orders: filteredOrders };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function approveOrder(orderId, deliveryPersonId, deliveryDistance) {
+  try {
+    // First, get the delivery person's vehicle information to calculate delivery charges
+    const deliveryPerson = await db('byt_users')
+      .join('byt_user_vehicle', 'byt_users.id', 'byt_user_vehicle.user_id')
+      .join('byt_vehicle_management', 'byt_user_vehicle.vehicle_id', 'byt_vehicle_management.id')
+      .where('byt_users.id', deliveryPersonId)
+      .select('byt_vehicle_management.rate_per_km')
+      .first();
+
+    if (!deliveryPerson) {
+      return { success: false, error: 'Delivery person not found or no vehicle assigned' };
+    }
+
+    // Calculate delivery charges
+    const deliveryCharges = deliveryDistance * deliveryPerson.rate_per_km;
+
+    // Get current order details to calculate new total
+    const currentOrder = await db('byt_orders')
+      .where('id', orderId)
+      .select('subtotal', 'shipping_amount', 'tax_amount', 'discount_amount', 'total_amount')
+      .first();
+
+    if (!currentOrder) {
+      return { success: false, error: 'Order not found' };
+    }
+
+    // Calculate new total including delivery charges
+    const newTotal = parseFloat(currentOrder.subtotal) +
+                     parseFloat(currentOrder.shipping_amount) +
+                     parseFloat(currentOrder.tax_amount) -
+                     parseFloat(currentOrder.discount_amount) +
+                     deliveryCharges;
+
+    // Update order with approval details and recalculated total
+    const updateData = {
+      status: 'approved',
+      delivery_person_id: deliveryPersonId,
+      delivery_distance: deliveryDistance,
+      delivery_charges: deliveryCharges,
+      total_amount: newTotal,
+      updated_at: new Date()
+    };
+
+    const result = await db('byt_orders')
+      .where('id', orderId)
+      .update(updateData);
+
+    if (result > 0) {
+      // Get updated order details
+      const orderResult = await getOrderById(orderId);
+      return { success: true, order: orderResult.order };
+    } else {
+      return { success: false, error: 'Order not found or could not be updated' };
+    }
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function rejectOrder(orderId, rejectionReason) {
+  try {
+    const updateData = {
+      status: 'rejected',
+      rejection_reason: rejectionReason,
+      updated_at: new Date()
+    };
+
+    const result = await db('byt_orders')
+      .where('id', orderId)
+      .update(updateData);
+
+    if (result > 0) {
+      // Get updated order details
+      const orderResult = await getOrderById(orderId);
+      return { success: true, order: orderResult.order };
+    } else {
+      return { success: false, error: 'Order not found or could not be updated' };
+    }
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function assignDeliveryPerson(orderId, deliveryPersonId, deliveryDistance) {
+  try {
+    // First, get the delivery person's vehicle information to calculate delivery charges
+    const deliveryPerson = await db('byt_users')
+      .join('byt_user_vehicle', 'byt_users.id', 'byt_user_vehicle.user_id')
+      .join('byt_vehicle_management', 'byt_user_vehicle.vehicle_id', 'byt_vehicle_management.id')
+      .where('byt_users.id', deliveryPersonId)
+      .select('byt_vehicle_management.rate_per_km')
+      .first();
+
+    if (!deliveryPerson) {
+      return { success: false, error: 'Delivery person not found or no vehicle assigned' };
+    }
+
+    // Calculate delivery charges
+    const deliveryCharges = deliveryDistance * deliveryPerson.rate_per_km;
+
+    // Update order with delivery assignment details
+    const updateData = {
+      delivery_person_id: deliveryPersonId,
+      delivery_distance: deliveryDistance,
+      delivery_charges: deliveryCharges,
+      updated_at: new Date()
+    };
+
+    const result = await db('byt_orders')
+      .where('id', orderId)
+      .update(updateData);
+
+    if (result > 0) {
+      // Get updated order details
+      const orderResult = await getOrderById(orderId);
+      return { success: true, order: orderResult.order };
+    } else {
+      return { success: false, error: 'Order not found or could not be updated' };
+    }
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function markOrderCompleted(orderId) {
+  try {
+    const updateData = {
+      status: 'completed',
+      updated_at: new Date()
+    };
+
+    const result = await db('byt_orders')
+      .where('id', orderId)
+      .update(updateData);
+
+    if (result > 0) {
+      // Get updated order details
+      const orderResult = await getOrderById(orderId);
+      return { success: true, order: orderResult.order };
+    } else {
+      return { success: false, error: 'Order not found or could not be updated' };
+    }
   } catch (error) {
     return { success: false, error: error.message };
   }

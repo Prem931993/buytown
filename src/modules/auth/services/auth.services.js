@@ -127,9 +127,9 @@ export async function loginService(data, apiRole) {
   if (!user) return { error: 'No account found for the provided identity. Please check your credentials and try again.', status: 401 };
 
   const failRecord = await models.getFailedAttempt(user.id);
-  if (failRecord && failRecord.attempt_count >= 5) {
-    return { error: 'Too many failed login attempts. Please try again later.', status: 403 };
-  }
+  // if (failRecord && failRecord.attempt_count >= 5) {
+  //   return { error: 'Too many failed login attempts. Please try again later.', status: 403 };
+  // }
 
   const valid = await helpers.comparePassword(password, user.password);
   if (!valid) {

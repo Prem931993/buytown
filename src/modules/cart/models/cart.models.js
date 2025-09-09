@@ -8,7 +8,7 @@ async function getOrCreateUserCart(userId) {
 
   if (!cart) {
     const [newCart] = await knex('byt_carts')
-      .insert({ user_id: userId })
+      .insert({ user_id: userId, status: 'pending' })
       .returning('*');
     cart = newCart;
   }
@@ -288,7 +288,54 @@ export async function clearUserCart(userId) {
     await knex('byt_cart_items')
       .where('cart_id', cart.id)
       .del();
+
+    // Update cart status to empty
+    await knex('byt_carts')
+      .where('id', cart.id)
+      .update({
+        status: 'empty',
+        updated_at: knex.fn.now()
+      });
   }
 
   return true;
+}
+
+// Update cart status
+export async function updateCartStatus(userId, status) {
+  const validStatuses = ['pending', 'processing', 'completed', 'empty', 'cancelled'];
+
+  if (!validStatuses.includes(status)) {
+    throw new Error('Invalid cart status');
+  }
+
+  const result = await knex('byt_carts')
+    .where('user_id', userId)
+    .update({
+      status,
+      updated_at: knex.fn.now()
+    })
+    .returning('*');
+
+  return result;
+}
+
+// Get cart status
+export async function getCartStatus(userId) {
+  const cart = await knex('byt_carts')
+    .select('status', 'updated_at')
+    .where('user_id', userId)
+    .first();
+
+  return cart || { status: 'empty', updated_at: null };
+}
+
+// Mark cart as processing (when moving to checkout)
+export async function markCartAsProcessing(userId) {
+  return updateCartStatus(userId, 'processing');
+}
+
+// Mark cart as completed (when order is placed)
+export async function markCartAsCompleted(userId) {
+  return updateCartStatus(userId, 'completed');
 }
