@@ -9,9 +9,20 @@ export async function getDashboardSummary() {
   }
 }
 
+import * as orderServices from '../../orders/services/order.services.js';
+
 export async function getOrdersAwaitingConfirmationCount() {
   try {
     const result = await models.getOrdersAwaitingConfirmationCount();
+    return result;
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function getOrdersAwaitingConfirmationList() {
+  try {
+    const result = await orderServices.getOrdersByStatus('awaiting_confirmation');
     return result;
   } catch (error) {
     return { success: false, error: error.message };

@@ -6,6 +6,34 @@ function generateOrderNumber() {
   return 'ORD-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
 }
 
+// Simplified delivery distance calculation
+// In production, replace this with actual distance calculation using Google Maps API or similar
+function calculateDeliveryDistance(address) {
+  // This is a placeholder implementation
+  // You should integrate with a mapping service like Google Maps API for accurate distance calculation
+
+  // For now, return a random distance between 5-25 km as an example
+  // In real implementation, calculate based on:
+  // - Store/warehouse location vs customer shipping address
+  // - Use latitude/longitude coordinates
+  // - Consider traffic, road conditions, etc.
+
+  // Example calculation based on address components
+  let baseDistance = 10; // Base distance in km
+
+  if (address && address.city) {
+    // Add variation based on city (simplified)
+    const cityHash = address.city.toLowerCase().split('').reduce((a, b) => {
+      a = ((a << 5) - a) + b.charCodeAt(0);
+      return a & a;
+    }, 0);
+
+    baseDistance += Math.abs(cityHash % 15); // Add 0-15 km variation
+  }
+
+  return Math.max(5, Math.min(50, baseDistance)); // Ensure distance is between 5-50 km
+}
+
 export async function createOrderService(userId, orderData) {
   const {
     shipping_address,
@@ -33,7 +61,36 @@ export async function createOrderService(userId, orderData) {
     const tax_amount = cartSummary.tax_amount;
     const discount_amount = 0; // Can be implemented later for coupons/discounts
     const shipping_amount = 0; // Can be implemented later for shipping calculations
-    const total_amount = cartSummary.total_amount;
+
+    // Calculate delivery distance (simplified calculation - in real app, use Google Maps API or similar)
+    let deliveryDistance = 0;
+    let deliveryCharges = 0;
+
+    try {
+      if (shipping_address) {
+        const parsedAddress = typeof shipping_address === 'string' ? JSON.parse(shipping_address) : shipping_address;
+
+        // For now, we'll use a simplified distance calculation
+        // In production, you would integrate with Google Maps API or similar service
+        // This is a placeholder calculation - you should replace with actual distance calculation
+        deliveryDistance = calculateDeliveryDistance(parsedAddress);
+
+        // Get the lowest rate vehicle for initial delivery charge calculation
+        const lowestRateVehicle = await trx('byt_vehicle_management')
+          .where('is_active', true)
+          .orderBy('rate_per_km', 'asc')
+          .first();
+
+        if (lowestRateVehicle) {
+          deliveryCharges = deliveryDistance * parseFloat(lowestRateVehicle.rate_per_km);
+        }
+      }
+    } catch (distanceError) {
+      console.warn('Error calculating delivery distance:', distanceError);
+      // Continue with order creation even if distance calculation fails
+    }
+
+    const total_amount = cartSummary.total_amount + deliveryCharges;
 
     // Create order record
     const [order] = await trx('byt_orders')
@@ -44,8 +101,10 @@ export async function createOrderService(userId, orderData) {
         tax_amount,
         discount_amount,
         shipping_amount,
+        delivery_distance: deliveryDistance,
+        delivery_charges: deliveryCharges,
         total_amount,
-        status: 'awaiting_approval',
+        status: 'awaiting_confirmation',
         payment_status: 'pending',
         payment_method,
         shipping_address,
