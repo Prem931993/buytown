@@ -1,5 +1,6 @@
 import * as userModel from '../models/user.models.js';
 import * as roleModel from '../models/role.models.js';
+import { hash, compare } from 'bcryptjs';
 
 // Cache roles to avoid repeated database calls
 let rolesCache = null;
@@ -100,12 +101,18 @@ export const createUser = async (userData) => {
         processedStatus = 1;
     }
 
+    // Hash password if provided
+    let hashedPassword = null;
+    if (userData.password) {
+        hashedPassword = await hash(userData.password, 10);
+    }
+
     const processedData = {
         firstname: userData.firstname || '',
         lastname: userData.lastname || '',
         email: userData.email || null,
         phone_no: userData.phone_no || null,
-        password: userData.password || null,
+        password: hashedPassword,
         gstin: userData.gstin || null,
         address: userData.address || null,
         role_id: role_id,

@@ -289,7 +289,7 @@ export async function approveOrder(orderId, deliveryPersonId, deliveryDistance) 
       .join('byt_user_vehicle', 'byt_users.id', 'byt_user_vehicle.user_id')
       .join('byt_vehicle_management', 'byt_user_vehicle.vehicle_id', 'byt_vehicle_management.id')
       .where('byt_users.id', deliveryPersonId)
-      .select('byt_vehicle_management.rate_per_km')
+      .select('byt_vehicle_management.rate_per_km', 'byt_vehicle_management.vehicle_type as vehicle_name', 'byt_vehicle_management.id as vehicle_id')
       .first();
 
     if (!deliveryPerson) {
@@ -322,6 +322,7 @@ export async function approveOrder(orderId, deliveryPersonId, deliveryDistance) 
       delivery_person_id: deliveryPersonId,
       delivery_distance: deliveryDistance,
       delivery_charges: deliveryCharges,
+      delivery_vehicle: deliveryPerson.vehicle_name,
       total_amount: newTotal,
       updated_at: new Date()
     };
