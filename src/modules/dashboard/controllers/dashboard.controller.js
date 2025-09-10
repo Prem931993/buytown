@@ -339,3 +339,27 @@ export async function getTopCustomers(req, res) {
     });
   }
 }
+
+export async function getAllCustomersWithOrders(req, res) {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    const result = await services.getAllCustomersWithOrders(limit);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        customers: result.customers
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+}

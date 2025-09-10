@@ -107,7 +107,7 @@ export async function getMostUsedDeliveryVehicles() {
   }
 }
 
-// Get top customers by order count
+// Get top customers by order count (only users with role_id = 2)
 export async function getTopCustomers(limit = 10) {
   try {
     const customers = await db('byt_orders')
@@ -117,12 +117,40 @@ export async function getTopCustomers(limit = 10) {
         'byt_users.firstname',
         'byt_users.lastname',
         'byt_users.email',
-        'byt_users.phone_no'
+        'byt_users.phone_no',
+        'byt_users.role_id'
       )
       .count('byt_orders.id as order_count')
       .sum('byt_orders.total_amount as total_spent')
       .whereNotNull('byt_orders.user_id')
-      .groupBy('byt_users.id', 'byt_users.firstname', 'byt_users.lastname', 'byt_users.email', 'byt_users.phone_no')
+      .where('byt_users.role_id', 2) // Only customers (role_id = 2)
+      .groupBy('byt_users.id', 'byt_users.firstname', 'byt_users.lastname', 'byt_users.email', 'byt_users.phone_no', 'byt_users.role_id')
+      .orderBy('order_count', 'desc')
+      .limit(limit);
+
+    return { success: true, customers };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// Get all customers with orders
+export async function getAllCustomersWithOrders(limit = 10) {
+  try {
+    const customers = await db('byt_orders')
+      .leftJoin('byt_users', 'byt_orders.user_id', 'byt_users.id')
+      .select(
+        'byt_users.id',
+        'byt_users.firstname',
+        'byt_users.lastname',
+        'byt_users.email',
+        'byt_users.phone_no',
+        'byt_users.role_id'
+      )
+      .count('byt_orders.id as order_count')
+      .sum('byt_orders.total_amount as total_spent')
+      .whereNotNull('byt_orders.user_id')
+      .groupBy('byt_users.id', 'byt_users.firstname', 'byt_users.lastname', 'byt_users.email', 'byt_users.phone_no', 'byt_users.role_id')
       .orderBy('order_count', 'desc')
       .limit(limit);
 

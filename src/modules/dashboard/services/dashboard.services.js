@@ -74,6 +74,15 @@ export async function getTopCustomers(limit = 10) {
   }
 }
 
+export async function getAllCustomersWithOrders(limit = 10) {
+  try {
+    const result = await models.getAllCustomersWithOrders(limit);
+    return result;
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
 export async function getTotalProductsCount() {
   try {
     const result = await models.getTotalProductsCount();

@@ -10,6 +10,9 @@ router.get('/summary', verifyDualAuth, controller.getDashboardSummary);
 // Get orders awaiting confirmation count
 router.get('/orders-awaiting-confirmation', verifyDualAuth, controller.getOrdersAwaitingConfirmationCount);
 
+// Get orders awaiting confirmation list
+router.get('/orders-awaiting-confirmation/list', verifyDualAuth, controller.getOrdersAwaitingConfirmationList);
+
 // Get low stock products
 router.get('/low-stock-products', verifyDualAuth, controller.getLowStockProducts);
 
@@ -24,6 +27,9 @@ router.get('/delivery-vehicles', verifyDualAuth, controller.getMostUsedDeliveryV
 
 // Get top customers
 router.get('/top-customers', verifyDualAuth, controller.getTopCustomers);
+
+// Get all customers with orders (for debugging)
+router.get('/all-customers-with-orders', verifyDualAuth, controller.getAllCustomersWithOrders);
 
 // Get total products count
 router.get('/total-products', verifyDualAuth, controller.getTotalProductsCount);

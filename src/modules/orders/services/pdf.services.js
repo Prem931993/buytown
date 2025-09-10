@@ -135,66 +135,102 @@ async function getOrderDetails(orderId) {
 
 // ------------------------- Renderer -------------------------
 
-function renderInvoice(doc, order, title = 'INVOICE') {
-  addHeader(doc);
-  addWatermark(doc);
+// ------------------------- Renderer (Updated to Match TAX INVOICE) -------------------------
 
-  // Title
-  doc.fillColor(COLORS.text).font('Bold').fontSize(22).text(title, 50, 100);
+function renderInvoice(doc, order, title = 'TAX INVOICE') {
+  // Header
+  doc.font('Bold').fontSize(16).text('BUYTOWN HARDWARE MARKET', { align: 'center' });
+  doc.moveDown(0.5);
+  doc.font('Regular').fontSize(10).text(
+    '66A, NESAVALAR COLONY, ONDIPUDUR, COIMBATORE Tamil Nadu 641016, India',
+    { align: 'center' }
+  );
+  doc.text('GSTIN: 33CQTPR3346B1ZQ', { align: 'center' });
+  doc.text('9677254546 | buytowncbe@gmail.com', { align: 'center' });
 
-  // Customer Info
-  doc.font('Regular').fontSize(12);
-  doc.rect(50, 140, 250, 100).stroke('#ccc');
-  doc.text('Customer Information', 60, 150, { underline: true });
-  doc.text(order.customer.name, 60, 170);
-  doc.text(order.customer.email, 60, 185);
-  doc.text(order.customer.phone, 60, 200);
+  doc.moveDown(1);
 
-  // Order Info
-  doc.rect(320, 140, 220, 100).stroke('#ccc');
-  doc.text(`Invoice #: ${order.order_number}`, 330, 150);
-  doc.text(`Date: ${new Date(order.orderDate).toLocaleDateString()}`, 330, 165);
-  doc.text(`Status: ${order.status}`, 330, 180);
-  doc.text(`Payment: ${order.paymentMethod}`, 330, 195);
+  // Invoice title + number
+  doc.font('Bold').fontSize(14).text(`${title} ${order.order_number}`, { align: 'center' });
+  doc.moveDown(1);
 
-  // Items Table Header
-  let tableTop = 270;
-  doc.rect(50, tableTop, 490, 25).fill(COLORS.primary).fillColor('#fff').font('Bold').fontSize(12);
-  doc.text('Item', 60, tableTop + 7);
-  doc.text('Qty', 300, tableTop + 7);
-  doc.text('Price (₹)', 360, tableTop + 7);
-  doc.text('Total (₹)', 450, tableTop + 7);
+  // Customer Info (Billing Address)
+  doc.font('Bold').fontSize(11).text(`${order.customer.name}`, 50, doc.y);
+  if (order.billingAddress) {
+    doc.font('Regular').fontSize(10).text(order.billingAddress.street || '', 50);
+    doc.text(`${order.billingAddress.city || ''} ${order.billingAddress.state || ''} ${order.billingAddress.zip || ''}`, 50);
+    doc.text(order.billingAddress.country || '', 50);
+  }
+  doc.text(`Place Of Supply: Tamil Nadu (33)`, 50, doc.y + 5);
 
-  // Items Rows
-  doc.fillColor(COLORS.text).font('Regular');
-  let y = tableTop + 30;
+  doc.moveDown(1);
+
+  // Table Header
+  let tableTop = doc.y + 10;
+  const colX = { sno: 50, desc: 100, hsn: 300, qty: 380, rate: 430, amt: 500 };
+
+  doc.font('Bold').fontSize(10);
+  doc.text('S.NO', colX.sno, tableTop);
+  doc.text('Description', colX.desc, tableTop);
+  doc.text('HSN/SAC', colX.hsn, tableTop);
+  doc.text('Qty', colX.qty, tableTop);
+  doc.text('Rate', colX.rate, tableTop);
+  doc.text('Amount', colX.amt, tableTop);
+
+  doc.moveTo(50, tableTop - 2).lineTo(550, tableTop - 2).stroke();
+
+  // Table Rows
+  doc.font('Regular').fontSize(10);
+  let y = tableTop + 15;
   order.items.forEach((item, idx) => {
-    if (idx % 2 === 0) {
-      doc.rect(50, y - 5, 490, 20).fill(COLORS.gray).fillColor(COLORS.text);
-    }
-    doc.text(item.name, 60, y);
-    doc.text(item.quantity.toString(), 300, y);
-    doc.text(`₹${item.price.toFixed(2)}`, 360, y);
-    doc.text(`₹${item.total.toFixed(2)}`, 450, y);
+    doc.text(idx + 1, colX.sno, y);
+    doc.text(item.name, colX.desc, y, { width: 180 });
+    doc.text(item.sku || '—', colX.hsn, y);
+    doc.text(item.quantity.toString(), colX.qty, y);
+    doc.text(item.price.toFixed(2), colX.rate, y);
+    doc.text(item.total.toFixed(2), colX.amt, y);
     y += 20;
   });
 
-  // Totals
+  doc.moveDown(2);
+
+  // Totals Section
+  y += 10;
+  doc.font('Regular').fontSize(10);
+  doc.text(`Sub Total`, 400, y); doc.text(order.subtotal.toFixed(2), 500, y, { width: 80, align: 'right' });
+
+  y += 15;
+  doc.text(`Shipping charge`, 400, y);
+  doc.text(order.shippingCost.toFixed(2), 500, y, { width: 80, align: 'right' });
+
+  if (order.tax > 0) {
+    y += 15;
+    let halfTax = (order.tax / 2).toFixed(2);
+    doc.text(`CGST9 (9%)`, 400, y); doc.text(halfTax, 500, y, { width: 80, align: 'right' });
+    y += 15;
+    doc.text(`SGST9 (9%)`, 400, y); doc.text(halfTax, 500, y, { width: 80, align: 'right' });
+  }
+
+  y += 15;
+  doc.font('Bold').text(`Total`, 400, y); doc.text(order.total.toFixed(2), 500, y, { width: 80, align: 'right' });
+
   y += 20;
-  doc.fontSize(12);
-  doc.text(`Subtotal: ₹${order.subtotal.toFixed(2)}`, 360, y);
-  y += 15; doc.text(`Shipping: ₹${order.shippingCost.toFixed(2)}`, 360, y);
-  y += 15; doc.text(`Tax: ₹${order.tax.toFixed(2)}`, 360, y);
-  y += 15; doc.text(`Delivery: ₹${order.deliveryCharges.toFixed(2)}`, 360, y);
-  y += 15; doc.text(`Discount: -₹${order.discount.toFixed(2)}`, 360, y);
+  doc.font('Bold').text(`TOTAL`, 400, y); doc.text(order.total.toFixed(2), 500, y, { width: 80, align: 'right' });
 
-  // Grand Total
-  y += 25;
-  doc.rect(350, y - 5, 190, 25).fill(COLORS.secondary).fillColor('#fff').font('Bold').fontSize(14);
-  doc.text(`Grand Total: ₹${order.total.toFixed(2)}`, 360, y);
+  y += 20;
+  doc.font('Regular').text(`DATE OF BILL : ${new Date(order.orderDate).toLocaleDateString('en-GB')}`, 50, y);
 
-  addFooter(doc);
+  doc.moveDown(3);
+
+  // Footer
+  doc.font('Regular').fontSize(10).text(
+    'Thanks for your business with BUYTOWN HARDWARE MARKET',
+    { align: 'center' }
+  );
+  doc.moveDown(0.5);
+  doc.text('BUYTOWN HARDWARE MARKET', { align: 'center' });
 }
+
 
 // ------------------------- Exports -------------------------
 

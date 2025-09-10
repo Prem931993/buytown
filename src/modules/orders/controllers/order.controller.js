@@ -289,18 +289,15 @@ export async function generateInvoicePDF(req, res) {
     const { id } = req.params;
     const orderId = parseInt(id);
 
-    // Set headers for browser download
     const fileName = `invoice_${orderId}.pdf`;
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
     res.setHeader('Content-Type', 'application/pdf');
 
-    // Call service and pipe PDF to response
     await pdfServices.generateInvoicePDF(orderId, res);
-
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: 'Internal server error'
+      error: 'Internal server error',
     });
   }
 }
