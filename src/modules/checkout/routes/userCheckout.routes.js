@@ -8,6 +8,6 @@ const router = Router();
 router.post('/', verifyUserDualAuth, userCheckoutController.createOrder);
 
 // Get user's orders
-router.get('/', verifyUserDualAuth, userCheckoutController.getUserOrders);
+router.get('/orders', verifyUserDualAuth, userCheckoutController.getUserOrders);
 
 export default router;

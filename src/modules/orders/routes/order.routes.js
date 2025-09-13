@@ -37,6 +37,9 @@ router.put('/:id/assign-delivery', verifyDualAuth, controller.assignDeliveryPers
 // Mark order as completed
 router.put('/:id/complete', verifyDualAuth, controller.markOrderCompleted);
 
+// Calculate delivery charge for selected delivery person
+router.post('/:id/calculate-delivery-charge', verifyDualAuth, controller.calculateDeliveryCharge);
+
 // PDF Generation Routes
 router.post('/:id/generate-invoice-pdf', verifyDualAuth, controller.generateInvoicePDF);
 router.post('/:id/generate-confirmation-pdf', verifyDualAuth, controller.generateOrderConfirmationPDF);

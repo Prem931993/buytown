@@ -57,6 +57,31 @@ export const getPageBySlug = async (req, res) => {
   }
 };
 
+export const getPublishedPageBySlug = async (req, res) => {
+  try {
+    const page = await pageService.getPublishedPageBySlug(req.params.slug);
+    if (!page) {
+      return res.status(404).json({
+        success: false,
+        error: 'Page not found'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      data: {
+        title: page.title,
+        content: page.content,
+        slug: page.slug
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
 export const createPage = async (req, res) => {
   try {
     const pageData = req.body;

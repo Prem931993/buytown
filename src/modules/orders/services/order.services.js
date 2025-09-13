@@ -1,13 +1,64 @@
 import * as models from '../models/order.models.js';
 import db from '../../../config/db.js';
 
+function getFinancialYear() {
+  const today = new Date();
+  let year = today.getFullYear();
+  const month = today.getMonth() + 1; // January is 0
+  // Financial year starts from April
+  if (month < 4) {
+    return `${(year - 1).toString().slice(-2)}-${year.toString().slice(-2)}`;
+  } else {
+    return `${year.toString().slice(-2)}-${(year + 1).toString().slice(-2)}`;
+  }
+}
+
+async function getLastOrderNumberForFinancialYear(financialYear) {
+  try {
+    const likePattern = `BYT-${financialYear}-%`;
+    const lastOrder = await db('byt_orders')
+      .where('order_number', 'like', likePattern)
+      .orderBy('order_number', 'desc')
+      .first();
+
+    if (!lastOrder || !lastOrder.order_number) {
+      return null;
+    }
+    return lastOrder.order_number;
+  } catch (error) {
+    console.error('Error fetching last order number:', error);
+    return null;
+  }
+}
+
+function extractSequenceNumber(orderNumber) {
+  // orderNumber format: BYT-24-25-000000001
+  const parts = orderNumber.split('-');
+  if (parts.length === 4) {
+    return parseInt(parts[3], 10);
+  }
+  return 0;
+}
+
+export async function generateOrderNumber() {
+  const financialYear = getFinancialYear();
+  const lastOrderNumber = await getLastOrderNumberForFinancialYear(financialYear);
+
+  let nextSequence = 1;
+  if (lastOrderNumber) {
+    const lastSeq = extractSequenceNumber(lastOrderNumber);
+    nextSequence = lastSeq + 1;
+  }
+
+  const sequenceStr = nextSequence.toString().padStart(9, '0');
+  return `BYT-${financialYear}-${sequenceStr}`;
+}
+
 export async function createOrder(orderData) {
   try {
     // Generate order number if not provided
     if (!orderData.order_number) {
-      const timestamp = Date.now();
-      const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-      orderData.order_number = `ORD-${timestamp}-${random}`;
+      orderData.order_number = await generateOrderNumber();
     }
 
     const result = await models.createOrder(orderData);
@@ -78,9 +129,7 @@ export async function getOrderById(id) {
       orderDate: firstRow.created_at ? new Date(firstRow.created_at).toISOString() : new Date().toISOString(),
       status: firstRow.status || 'Pending',
       paymentMethod: firstRow.payment_method || 'N/A',
-      paymentStatus: 'Paid', // Default assumption
-      shippingMethod: 'Standard', // Default assumption
-      trackingNumber: null,
+      paymentStatus: firstRow.payment_status || 'Pending',
       subtotal: parseFloat(firstRow.subtotal) || 0,
       shippingCost: parseFloat(firstRow.shipping_amount) || 0,
       tax: parseFloat(firstRow.tax_amount) || 0,
@@ -89,6 +138,7 @@ export async function getOrderById(id) {
       deliveryDistance: parseFloat(firstRow.delivery_distance) || 0,
       deliveryCharges: parseFloat(firstRow.delivery_charges) || 0,
       deliveryPersonId: firstRow.delivery_person_id || null,
+      deliveryDriver: firstRow.delivery_driver || null,
       shippingAddress: shippingAddress,
       billingAddress: billingAddress,
       items: [],
@@ -282,22 +332,20 @@ export async function getOrdersByUser(userId) {
   }
 }
 
-export async function approveOrder(orderId, deliveryPersonId, deliveryDistance) {
+export async function approveOrder(orderId, vehicleId, deliveryDistance, deliveryPersonId = null) {
   try {
-    // First, get the delivery person's vehicle information to calculate delivery charges
-    const deliveryPerson = await db('byt_users')
-      .join('byt_user_vehicle', 'byt_users.id', 'byt_user_vehicle.user_id')
-      .join('byt_vehicle_management', 'byt_user_vehicle.vehicle_id', 'byt_vehicle_management.id')
-      .where('byt_users.id', deliveryPersonId)
-      .select('byt_vehicle_management.rate_per_km', 'byt_vehicle_management.vehicle_type as vehicle_name', 'byt_vehicle_management.id as vehicle_id')
+    // Get vehicle information directly
+    const vehicle = await db('byt_vehicle_management')
+      .where('id', vehicleId)
+      .select('rate_per_km', 'vehicle_type')
       .first();
 
-    if (!deliveryPerson) {
-      return { success: false, error: 'Delivery person not found or no vehicle assigned' };
+    if (!vehicle) {
+      return { success: false, error: 'Vehicle not found' };
     }
 
     // Calculate delivery charges
-    const deliveryCharges = deliveryDistance * deliveryPerson.rate_per_km;
+    const deliveryCharges = deliveryDistance * parseFloat(vehicle.rate_per_km);
 
     // Get current order details to calculate new total
     const currentOrder = await db('byt_orders')
@@ -316,13 +364,27 @@ export async function approveOrder(orderId, deliveryPersonId, deliveryDistance) 
                      parseFloat(currentOrder.discount_amount) +
                      deliveryCharges;
 
+    // Get delivery person name if deliveryPersonId is provided
+    let deliveryPersonName = null;
+    if (deliveryPersonId) {
+      const deliveryPerson = await db('byt_users')
+        .where('id', deliveryPersonId)
+        .select('firstname', 'lastname')
+        .first();
+
+      if (deliveryPerson) {
+        deliveryPersonName = `${deliveryPerson.firstname || ''} ${deliveryPerson.lastname || ''}`.trim();
+      }
+    }
+
     // Update order with approval details and recalculated total
     const updateData = {
       status: 'approved',
-      delivery_person_id: deliveryPersonId,
       delivery_distance: deliveryDistance,
       delivery_charges: deliveryCharges,
-      delivery_vehicle: deliveryPerson.vehicle_name,
+      delivery_vehicle: vehicle.vehicle_type,
+      delivery_person_id: deliveryPersonId,
+      delivery_driver: deliveryPersonName,
       total_amount: newTotal,
       updated_at: new Date()
     };
@@ -374,7 +436,7 @@ export async function assignDeliveryPerson(orderId, deliveryPersonId, deliveryDi
       .join('byt_user_vehicle', 'byt_users.id', 'byt_user_vehicle.user_id')
       .join('byt_vehicle_management', 'byt_user_vehicle.vehicle_id', 'byt_vehicle_management.id')
       .where('byt_users.id', deliveryPersonId)
-      .select('byt_vehicle_management.rate_per_km')
+      .select('byt_users.firstname', 'byt_users.lastname', 'byt_vehicle_management.rate_per_km')
       .first();
 
     if (!deliveryPerson) {
@@ -384,9 +446,13 @@ export async function assignDeliveryPerson(orderId, deliveryPersonId, deliveryDi
     // Calculate delivery charges
     const deliveryCharges = deliveryDistance * deliveryPerson.rate_per_km;
 
+    // Create delivery person name
+    const deliveryPersonName = `${deliveryPerson.firstname || ''} ${deliveryPerson.lastname || ''}`.trim();
+
     // Update order with delivery assignment details
     const updateData = {
       delivery_person_id: deliveryPersonId,
+      delivery_driver: deliveryPersonName,
       delivery_distance: deliveryDistance,
       delivery_charges: deliveryCharges,
       updated_at: new Date()
@@ -426,6 +492,50 @@ export async function markOrderCompleted(orderId) {
     } else {
       return { success: false, error: 'Order not found or could not be updated' };
     }
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function calculateDeliveryCharge(orderId, vehicleId) {
+  try {
+    // Get order details to get delivery distance
+    const order = await db('byt_orders')
+      .where('id', orderId)
+      .select('delivery_distance')
+      .first();
+
+    if (!order) {
+      return { success: false, error: 'Order not found' };
+    }
+
+    if (!order.delivery_distance || order.delivery_distance <= 0) {
+      return { success: false, error: 'Delivery distance not calculated for this order' };
+    }
+
+    // Get vehicle information directly
+    const vehicle = await db('byt_vehicle_management')
+      .where('id', vehicleId)
+      .select(
+        'rate_per_km',
+        'vehicle_type',
+      )
+      .first();
+
+    if (!vehicle) {
+      return { success: false, error: 'Vehicle not found' };
+    }
+
+    // Calculate delivery charge
+    const deliveryCharge = order.delivery_distance * parseFloat(vehicle.rate_per_km);
+
+    return {
+      success: true,
+      delivery_charge: deliveryCharge,
+      delivery_distance: order.delivery_distance,
+      vehicle_rate: parseFloat(vehicle.rate_per_km),
+      vehicle_type: vehicle.vehicle_type
+    };
   } catch (error) {
     return { success: false, error: error.message };
   }

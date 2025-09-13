@@ -13,11 +13,13 @@ import smsRoutes from './src/modules/auth/routes/sms.routes.js';
 import categoryRoutes from './src/modules/categories/routes/category.routes.js';
 import userCategoryRoutes from './src/modules/categories/routes/userCategory.routes.js';
 import brandRoutes from './src/modules/brands/routes/brand.routes.js';
+import userBrandRoutes from './src/modules/brands/routes/userBrand.routes.js';
 import variationRoutes from './src/modules/variations/routes/variation.routes.js';
 import productRoutes from './src/modules/products/routes/product.routes.js';
 import userProductRoutes from './src/modules/products/routes/userProduct.routes.js';
 import bannerRoutes from './src/modules/banners/routes/banner.routes.js';
 import userBannerRoutes from './src/modules/banners/routes/userBanner.routes.js';
+import userPageRoutes from './src/modules/pages/routes/userPage.routes.js';
 import logoRoutes from './src/modules/logos/routes/logo.routes.js';
 import userRoutes from './src/modules/users/routes/user.routes.js';
 import userCartRoutes from './src/modules/cart/routes/userCart.routes.js';
@@ -29,7 +31,10 @@ import dashboardRoutes from './src/modules/dashboard/routes/dashboard.routes.js'
 import vehicleRoutes from './src/modules/vehicles/routes/vehicle.routes.js';
 import deliveryRoutes from './src/modules/vehicles/routes/delivery.routes.js';
 import pageRoutes from './src/modules/pages/routes/page.routes.js';
+import generalSettingsRoutes from './src/modules/general-settings/routes/generalSettings.routes.js';
+import userGeneralSettingsRoutes from './src/modules/general-settings/routes/userGeneralSettings.routes.js';
 import notificationRoutes from './src/modules/notifications/routes/notification.routes.js';
+import userWishlistRoutes from './src/modules/wishlist/routes/userWishlist.routes.js';
 
 const app = express();
 app.use(cors({
@@ -114,6 +119,7 @@ app.use('/api/v1/sms', smsRoutes);
 app.use('/api/v1/categories', categoryRoutes);
 app.use('/api/v1/user/categories', userCategoryRoutes);
 app.use('/api/v1/brands', brandRoutes);
+app.use('/api/v1/user/brands', userBrandRoutes);
 app.use('/api/v1/variations', variationRoutes);
 app.use('/api/v1/products', productRoutes);
 app.use('/api/v1/user/products', userProductRoutes);
@@ -129,7 +135,11 @@ app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/vehicles', vehicleRoutes);
 app.use('/api/v1/delivery', deliveryRoutes);
 app.use('/api/v1/pages', pageRoutes);
+app.use('/api/v1/user/pages', userPageRoutes);
+app.use('/api/v1/general-settings', generalSettingsRoutes);
+app.use('/api/v1/user/general-settings', userGeneralSettingsRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
+app.use('/api/v1/user/wishlist', userWishlistRoutes);
 
 app.post('/', (req, res) => res.send('BuyTown API Microservice'));
 

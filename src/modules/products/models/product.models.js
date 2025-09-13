@@ -48,6 +48,58 @@ export async function getAllProducts({ page = 1, limit = 10, search = '', catego
   return query;
 }
 
+// Global search across products, categories, and brands
+export async function getGlobalSearch({ search = '', limit = 10 } = {}) {
+  if (!search || search.trim() === '') {
+    return {
+      products: [],
+      categories: [],
+      brands: []
+    };
+  }
+
+  const searchTerm = `%${search.trim()}%`;
+
+  // Search products
+  const products = await knex('byt_products')
+    .leftJoin('byt_categories as parent_categories', 'byt_products.category_id', 'parent_categories.id')
+    .leftJoin('byt_categories as sub_categories', 'byt_products.subcategory_id', 'sub_categories.id')
+    .leftJoin('byt_brands', 'byt_products.brand_id', 'byt_brands.id')
+    .select(
+      'byt_products.*',
+      'parent_categories.name as category_name',
+      'sub_categories.name as subcategory_name',
+      'byt_brands.name as brand_name'
+    )
+    .where('byt_products.deleted_at', null)
+    .where('byt_products.status', 1)
+    .where('byt_products.name', 'ilike', searchTerm)
+    .orderBy('byt_products.name')
+    .limit(limit);
+
+  // Search categories
+  const categories = await knex('byt_categories')
+    .select('id', 'name', 'description', 'image', 'parent_id')
+    .where('is_active', true)
+    .where('name', 'ilike', searchTerm)
+    .orderBy('name')
+    .limit(limit);
+
+  // Search brands
+  const brands = await knex('byt_brands')
+    .select('id', 'name', 'description', 'image', 'is_active')
+    .where('is_active', true)
+    .where('name', 'ilike', searchTerm)
+    .orderBy('name')
+    .limit(limit);
+
+  return {
+    products,
+    categories,
+    brands
+  };
+}
+
 // Get total count of products with filters
 export async function getProductsCount({ search = '', categoryId = null, brandId = null } = {}) {
   let query = knex('byt_products')
@@ -298,6 +350,105 @@ export async function getParentProduct(childProductId) {
     .where('child.id', childProductId)
     .where('parent.deleted_at', null)
     .first();
-    
+
   return result || null;
+}
+
+// Get new arrivals products (recently added products)
+export async function getNewArrivalsProducts({ categoryIds = [], limit = 4 } = {}) {
+  let query = knex('byt_products')
+    .leftJoin('byt_categories as parent_categories', 'byt_products.category_id', 'parent_categories.id')
+    .leftJoin('byt_categories as sub_categories', 'byt_products.subcategory_id', 'sub_categories.id')
+    .leftJoin('byt_brands', 'byt_products.brand_id', 'byt_brands.id')
+    .select(
+      'byt_products.*',
+      'parent_categories.name as category_name',
+      'sub_categories.name as subcategory_name',
+      'byt_brands.name as brand_name'
+    )
+    .where('byt_products.deleted_at', null)
+    .where('byt_products.status', 1)
+    .orderBy('byt_products.created_at', 'desc');
+
+  // Add category filter (multiple categories)
+  if (categoryIds && categoryIds.length > 0) {
+    query = query.whereIn('byt_products.category_id', categoryIds);
+  }
+
+  // Add limit
+  query = query.limit(limit);
+
+  return query;
+}
+
+// Get top selling products (based on order history)
+export async function getTopSellingProducts({ categoryIds = [], limit = 8 } = {}) {
+  let query = knex('byt_products')
+    .leftJoin('byt_order_items', 'byt_products.id', 'byt_order_items.product_id')
+    .leftJoin('byt_orders', 'byt_order_items.order_id', 'byt_orders.id')
+    .leftJoin('byt_categories as parent_categories', 'byt_products.category_id', 'parent_categories.id')
+    .leftJoin('byt_categories as sub_categories', 'byt_products.subcategory_id', 'sub_categories.id')
+    .leftJoin('byt_brands', 'byt_products.brand_id', 'byt_brands.id')
+    .select(
+      'byt_products.*',
+      'parent_categories.name as category_name',
+      'sub_categories.name as subcategory_name',
+      'byt_brands.name as brand_name'
+    )
+    .sum('byt_order_items.quantity as total_sold')
+    .where('byt_products.deleted_at', null)
+    .where('byt_products.status', 1)
+    .where('byt_orders.status', '!=', 'cancelled')
+    .where('byt_orders.status', '!=', 'rejected')
+    .groupBy(
+      'byt_products.id',
+      'parent_categories.name',
+      'sub_categories.name',
+      'byt_brands.name'
+    )
+    .orderBy('total_sold', 'desc');
+
+  // Add category filter (multiple categories)
+  if (categoryIds && categoryIds.length > 0) {
+    query = query.whereIn('byt_products.category_id', categoryIds);
+  }
+
+  // Add limit
+  query = query.limit(limit);
+
+  const results = await query;
+
+  // If no results (no orders), return random products as fallback
+  if (results.length === 0) {
+    return getRandomProducts({ categoryIds, limit });
+  }
+
+  return results;
+}
+
+// Get random products
+export async function getRandomProducts({ categoryIds = [], limit = 10 } = {}) {
+  let query = knex('byt_products')
+    .leftJoin('byt_categories as parent_categories', 'byt_products.category_id', 'parent_categories.id')
+    .leftJoin('byt_categories as sub_categories', 'byt_products.subcategory_id', 'sub_categories.id')
+    .leftJoin('byt_brands', 'byt_products.brand_id', 'byt_brands.id')
+    .select(
+      'byt_products.*',
+      'parent_categories.name as category_name',
+      'sub_categories.name as subcategory_name',
+      'byt_brands.name as brand_name'
+    )
+    .where('byt_products.deleted_at', null)
+    .where('byt_products.status', 1)
+    .orderByRaw('RANDOM()');
+
+  // Add category filter (multiple categories)
+  if (categoryIds && categoryIds.length > 0) {
+    query = query.whereIn('byt_products.category_id', categoryIds);
+  }
+
+  // Add limit
+  query = query.limit(limit);
+
+  return query;
 }

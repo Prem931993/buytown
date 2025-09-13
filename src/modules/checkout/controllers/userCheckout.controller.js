@@ -44,7 +44,7 @@ export async function getUserOrders(req, res) {
     const userId = req.user.id;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
-    const status = req.query.status; // Optional filter by status
+    const status = req.query.status;
 
     const result = await services.getUserOrdersService(userId, {
       page,

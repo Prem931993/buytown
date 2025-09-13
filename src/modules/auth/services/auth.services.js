@@ -178,7 +178,8 @@ export async function loginService(data, apiRole) {
       lastname: user.lastname,
       email: user.email,
       phone_no: user.phone_no,
-      role_id: user.role_id
+      role_id: user.role_id,
+      agreedToTerms: user.terms_agreed || false
     },
     accessToken,
     refreshToken,
@@ -232,6 +233,27 @@ export async function logoutService(refreshToken, req) {
     if (!session) return { error: 'Invalid refresh token.', status: 400, session: session };
     await models.deleteSessionById(session.id);
     return { message: 'Logged out successfully.', status: 200, session: session };
+  } catch (err) {
+    return { error: 'Invalid or expired refresh token.', status: 401 };
+  }
+}
+
+// User logout service for user token invalidation
+export async function userLogoutService(refreshToken, req) {
+  if (!refreshToken) return { error: 'Refresh token required.', status: 400 };
+  try {
+    const decoded = helpers.verifyToken(refreshToken, process.env.JWT_REFRESH_SECRET);
+    const session = await models.findSessionByToken(refreshToken, decoded.id);
+    if (!session) return { error: 'Invalid refresh token.', status: 400, session: session };
+
+    // Verify that the session belongs to a user (role_id = 2)
+    const user = await models.findUserById(session.user_id);
+    if (!user || user.role_id !== 2) {
+      return { error: 'Invalid user session.', status: 400 };
+    }
+
+    await models.deleteSessionById(session.id);
+    return { message: 'User logged out successfully.', status: 200, session: session };
   } catch (err) {
     return { error: 'Invalid or expired refresh token.', status: 401 };
   }
@@ -623,4 +645,97 @@ export async function userResendSetPasswordOtpService(phone_no, req) {
       email: user.email
     }
   };
+}
+
+// Update user profile service with upsert functionality
+export async function updateUserProfileService(userId, updateData) {
+  try {
+    // Validate user exists
+    const existingUser = await models.findUserById(userId);
+    if (!existingUser) {
+      return { error: 'User not found.', status: 404 };
+    }
+
+    // Validate email uniqueness if email is being updated
+    if (updateData.email && updateData.email !== existingUser.email) {
+      const emailExists = await models.findUserByEmail(updateData.email);
+      if (emailExists) {
+        return { error: 'Email address already exists.', status: 409 };
+      }
+    }
+
+    // Validate phone uniqueness if phone is being updated
+    if (updateData.phone_no && updateData.phone_no !== existingUser.phone_no) {
+      const phoneExists = await models.findUserByPhone(updateData.phone_no);
+      if (phoneExists) {
+        return { error: 'Phone number already exists.', status: 409 };
+      }
+    }
+
+    // Update user profile (only profile fields, no terms agreement)
+    await models.updateUserProfile(userId, updateData);
+
+    // Fetch updated user data
+    const updatedUser = await models.findUserById(userId);
+
+    return {
+      user: {
+        id: updatedUser.id,
+        firstname: updatedUser.firstname,
+        lastname: updatedUser.lastname,
+        email: updatedUser.email,
+        phone_no: updatedUser.phone_no,
+        address: updatedUser.address,
+        gstin: updatedUser.gstin,
+        role_id: updatedUser.role_id,
+        terms_agreed: updatedUser.terms_agreed,
+        terms_agreed_at: updatedUser.terms_agreed_at
+      },
+      status: 200
+    };
+  } catch (error) {
+    console.error('Error in updateUserProfileService:', error);
+    return { error: 'Failed to update profile.', status: 500 };
+  }
+}
+
+// Agree to terms and conditions service
+export async function agreeTermsAndConditionsService(userId) {
+  try {
+    // Validate user exists
+    const existingUser = await models.findUserById(userId);
+    if (!existingUser) {
+      return { error: 'User not found.', status: 404 };
+    }
+
+    // Update terms agreement
+    const updateData = {
+      terms_agreed: true,
+      terms_agreed_at: new Date()
+    };
+
+    await models.updateUserProfile(userId, updateData);
+
+    // Fetch updated user data
+    const updatedUser = await models.findUserById(userId);
+
+    return {
+      user: {
+        id: updatedUser.id,
+        firstname: updatedUser.firstname,
+        lastname: updatedUser.lastname,
+        email: updatedUser.email,
+        phone_no: updatedUser.phone_no,
+        address: updatedUser.address,
+        gstin: updatedUser.gstin,
+        role_id: updatedUser.role_id,
+        terms_agreed: updatedUser.terms_agreed,
+        terms_agreed_at: updatedUser.terms_agreed_at
+      },
+      status: 200
+    };
+  } catch (error) {
+    console.error('Error in agreeTermsAndConditionsService:', error);
+    return { error: 'Failed to agree to terms and conditions.', status: 500 };
+  }
 }

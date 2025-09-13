@@ -1,10 +1,7 @@
 import knex from '../../../config/db.js';
 import * as cartModels from '../../cart/models/cart.models.js';
 import * as notificationService from '../../notifications/services/notification.services.js';
-
-function generateOrderNumber() {
-  return 'ORD-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
-}
+import * as orderService from '../../orders/services/order.services.js';
 
 // Simplified delivery distance calculation
 // In production, replace this with actual distance calculation using Google Maps API or similar
@@ -62,9 +59,8 @@ export async function createOrderService(userId, orderData) {
     const discount_amount = 0; // Can be implemented later for coupons/discounts
     const shipping_amount = 0; // Can be implemented later for shipping calculations
 
-    // Calculate delivery distance (simplified calculation - in real app, use Google Maps API or similar)
+    // Calculate delivery distance only (delivery charges will be 0 during awaiting_confirmation)
     let deliveryDistance = 0;
-    let deliveryCharges = 0;
 
     try {
       if (shipping_address) {
@@ -74,29 +70,25 @@ export async function createOrderService(userId, orderData) {
         // In production, you would integrate with Google Maps API or similar service
         // This is a placeholder calculation - you should replace with actual distance calculation
         deliveryDistance = calculateDeliveryDistance(parsedAddress);
-
-        // Get the lowest rate vehicle for initial delivery charge calculation
-        const lowestRateVehicle = await trx('byt_vehicle_management')
-          .where('is_active', true)
-          .orderBy('rate_per_km', 'asc')
-          .first();
-
-        if (lowestRateVehicle) {
-          deliveryCharges = deliveryDistance * parseFloat(lowestRateVehicle.rate_per_km);
-        }
       }
     } catch (distanceError) {
       console.warn('Error calculating delivery distance:', distanceError);
       // Continue with order creation even if distance calculation fails
     }
 
-    const total_amount = cartSummary.total_amount + deliveryCharges;
+    // Delivery charges will be 0 during awaiting_confirmation status
+    // They will be calculated and updated only when order is approved
+    const deliveryCharges = 0;
+    const total_amount = cartSummary.total_amount;
+
+    // Generate order number using the proper format
+    const orderNumber = await orderService.generateOrderNumber();
 
     // Create order record
     const [order] = await trx('byt_orders')
       .insert({
         user_id: userId,
-        order_number: generateOrderNumber(),
+        order_number: orderNumber,
         subtotal,
         tax_amount,
         discount_amount,
@@ -154,18 +146,19 @@ export async function getUserOrdersService(userId, options) {
   const { page = 1, limit = 10, status } = options;
 
   try {
-    const query = knex('byt_orders')
-      .where('user_id', userId)
-      .orderBy('created_at', 'desc');
-
+    // Build base query for filtering
+    const baseQuery = knex('byt_orders').where('user_id', userId);
     if (status) {
-      query.andWhere('status', status);
+      baseQuery.andWhere('status', status);
     }
 
-    const totalOrders = await query.clone().count('id as count').first();
+    // Get total count without ORDER BY (since COUNT doesn't need ordering)
+    const totalOrders = await baseQuery.clone().count('id as count').first();
     const total = parseInt(totalOrders.count, 10);
 
-    const orders = await query
+    // Get paginated orders with ORDER BY
+    const orders = await baseQuery
+      .orderBy('created_at', 'desc')
       .offset((page - 1) * limit)
       .limit(limit)
       .select('*');

@@ -63,14 +63,14 @@ export async function getRecentSales(days = 30) {
   }
 }
 
-// Get popular products (most sold based on order history - simplified version)
+// Get popular products (most sold based on order history)
 export async function getPopularProducts(limit = 10) {
   try {
-    // This is a simplified version - in a real scenario, you'd have order items table
-    // For now, we'll return products with highest stock (assuming popular products)
-    const products = await db('byt_products')
+    const products = await db('byt_order_items')
+      .leftJoin('byt_products', 'byt_order_items.product_id', 'byt_products.id')
       .leftJoin('byt_categories', 'byt_products.category_id', 'byt_categories.id')
       .leftJoin('byt_brands', 'byt_products.brand_id', 'byt_brands.id')
+      .leftJoin('byt_orders', 'byt_order_items.order_id', 'byt_orders.id')
       .select(
         'byt_products.id',
         'byt_products.name',
@@ -80,7 +80,20 @@ export async function getPopularProducts(limit = 10) {
         'byt_categories.name as category_name',
         'byt_brands.name as brand_name'
       )
-      .orderBy('byt_products.stock', 'desc')
+      .sum('byt_order_items.quantity as total_sold')
+      .count('byt_order_items.order_id as order_count')
+      .where('byt_orders.status', '!=', 'cancelled') // Exclude cancelled orders
+      .where('byt_orders.status', '!=', 'rejected') // Exclude rejected orders
+      .groupBy(
+        'byt_products.id',
+        'byt_products.name',
+        'byt_products.sku_code',
+        'byt_products.price',
+        'byt_products.stock',
+        'byt_categories.name',
+        'byt_brands.name'
+      )
+      .orderBy('total_sold', 'desc')
       .limit(limit);
 
     return { success: true, products };

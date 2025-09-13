@@ -183,8 +183,16 @@ export async function getOrdersByUser(req, res) {
 export async function approveOrder(req, res) {
   try {
     const { id } = req.params;
-    const { delivery_person_id, delivery_distance } = req.body;
-    const result = await services.approveOrder(parseInt(id), delivery_person_id, delivery_distance);
+    const { vehicle_id, delivery_distance, delivery_person_id } = req.body;
+
+    if (!vehicle_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'Vehicle ID is required'
+      });
+    }
+
+    const result = await services.approveOrder(parseInt(id), vehicle_id, delivery_distance, delivery_person_id);
 
     if (result.success) {
       res.json({
@@ -268,6 +276,43 @@ export async function markOrderCompleted(req, res) {
         success: true,
         message: 'Order marked as completed successfully',
         order: result.order
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+}
+
+export async function calculateDeliveryCharge(req, res) {
+  try {
+    const { id } = req.params;
+    const { vehicle_id } = req.body;
+
+    if (!vehicle_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'Vehicle ID is required'
+      });
+    }
+
+    const result = await services.calculateDeliveryCharge(parseInt(id), vehicle_id);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        delivery_charge: result.delivery_charge,
+        delivery_distance: result.delivery_distance,
+        vehicle_rate: result.vehicle_rate,
+        vehicle_name: result.vehicle_name,
+        vehicle_type: result.vehicle_type
       });
     } else {
       res.status(400).json({
