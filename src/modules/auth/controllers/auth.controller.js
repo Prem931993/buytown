@@ -84,6 +84,102 @@ export async function logout(req, res) {
   res.status(result.status).json({ statusCode: result.status, message: result.message });
 }
 
+// User logout API for user token invalidation
+export async function userLogout(req, res) {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      return res.status(400).json({ statusCode: 400, error: 'Refresh token is required' });
+    }
+
+    const result = await services.userLogoutService(refreshToken, req);
+
+    setAuditLog(req, {
+      userId: result.session?.user_id,
+      identity: '',
+      attemptType: 'user_logout',
+      success: !result.error,
+      role: result.session?.role_id
+    });
+
+    if (result.error) {
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+
+    return res.status(result.status).json({ statusCode: result.status, message: 'User logged out successfully' });
+  } catch (error) {
+    console.error('Error in userLogout controller:', error);
+    return res.status(500).json({ statusCode: 500, error: 'Internal server error during user logout' });
+  }
+}
+
+// API to update user profile (excluding terms agreement)
+export async function updateUserProfile(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ statusCode: 401, error: 'Unauthorized' });
+    }
+
+    const {
+      firstname,
+      lastname,
+      email,
+      phone_no,
+      address,
+      gstin
+    } = req.body;
+
+    // Prepare update data (only profile fields)
+    const updateData = {
+      firstname,
+      lastname,
+      email,
+      phone_no,
+      address,
+      gstin
+    };
+
+    const result = await services.updateUserProfileService(userId, updateData);
+
+    if (result.error) {
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+
+    res.status(200).json({ statusCode: 200, message: 'Profile updated successfully', user: result.user });
+  } catch (error) {
+    console.error('Error in updateUserProfile controller:', error);
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
+
+// API to agree to terms and conditions
+export async function agreeTermsAndConditions(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ statusCode: 401, error: 'Unauthorized' });
+    }
+
+    const { terms_agreed } = req.body;
+
+    if (terms_agreed !== true) {
+      return res.status(400).json({ statusCode: 400, error: 'Terms agreement must be set to true' });
+    }
+
+    const result = await services.agreeTermsAndConditionsService(userId);
+
+    if (result.error) {
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+
+    res.status(200).json({ statusCode: 200, message: 'Terms and conditions agreed successfully', user: result.user });
+  } catch (error) {
+    console.error('Error in agreeTermsAndConditions controller:', error);
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
+
 export async function forgotPassword(req, res) {
   const { identity } = req.body;
   const result = await services.forgotPasswordService(identity, req);

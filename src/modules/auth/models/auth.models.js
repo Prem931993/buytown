@@ -70,3 +70,6 @@ export const deletePasswordResetByUserId = (user_id) =>
 
 export const updateUserPassword = (userId, hashedPassword) =>
   knex('byt_users').where({ id: userId }).update({ password: hashedPassword });
+
+export const updateUserProfile = (userId, updateData) =>
+  knex('byt_users').where({ id: userId }).update(updateData);

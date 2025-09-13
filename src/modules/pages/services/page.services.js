@@ -12,6 +12,10 @@ export const getPageBySlug = async (slug) => {
   return await pageModel.getPageBySlug(slug);
 };
 
+export const getPublishedPageBySlug = async (slug) => {
+  return await pageModel.getPublishedPageBySlug(slug);
+};
+
 export const createPage = async (pageData) => {
   // Validate required fields
   if (!pageData.title || !pageData.content) {

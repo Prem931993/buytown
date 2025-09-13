@@ -14,6 +14,10 @@ export const getPageBySlug = async (slug) => {
   return await db(TABLE_NAME).where({ slug }).first();
 };
 
+export const getPublishedPageBySlug = async (slug) => {
+  return await db(TABLE_NAME).where({ slug, status: 'published' }).first();
+};
+
 export const createPage = async (pageData) => {
   const [result] = await db(TABLE_NAME).insert(pageData).returning('*');
   return result;
