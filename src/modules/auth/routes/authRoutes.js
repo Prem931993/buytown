@@ -52,7 +52,7 @@ router.post('/verify-admin-token', verifyDualAuth, (req, res) => {
 });
 
 
-router.post('/user/login', auditTrail, verifyApiToken(2), authController.login);
+router.post('/user/login', auditTrail, verifyApiToken(2,3), authController.login);
 router.post('/user/validate-phone', verifyApiToken(2), authController.validatePhone);
 router.post('/user/set-password', verifyApiToken(2), auditTrail, authController.setPassword);
 

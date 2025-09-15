@@ -2,6 +2,7 @@ import * as models from '../models/product.models.js';
 import knex from '../../../config/db.js';
 import fs from 'fs';
 import path from 'path';
+import * as notificationService from '../../notifications/services/notification.services.js';
 
 // Get all products with pagination and search
 export async function getAllProductsService({ page = 1, limit = 10, search = '', categoryId = null, brandId = null } = {}) {
@@ -114,7 +115,7 @@ export async function createProductService(productData, images = [], variations 
           child_product_id: product.id
         })
         .first();
-      
+
       // If the relationship doesn't exist, create it
       if (!existingRelationship) {
         await knex('byt_product_parent_child').insert({
@@ -122,7 +123,7 @@ export async function createProductService(productData, images = [], variations 
           child_product_id: product.id
         });
       }
-      
+
       // Update the child product to set its parent_product_id
       await knex('byt_products')
         .where('id', product.id)
@@ -131,6 +132,14 @@ export async function createProductService(productData, images = [], variations 
           parent_product_id: productData.parent_product_id,
           updated_at: knex.fn.now()
         });
+    }
+
+    // Create notification for new product (queue for cronjob processing)
+    try {
+      await notificationService.createNewProductNotification(product);
+    } catch (notificationError) {
+      console.error('Error creating new product notification:', notificationError);
+      // Don't fail the product creation if notification fails
     }
 
     // Return the complete product with images and variations

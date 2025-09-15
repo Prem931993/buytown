@@ -421,3 +421,65 @@ export async function getAllInvoices(req, res) {
     });
   }
 }
+
+export async function completeOrderByDelivery(req, res) {
+  try {
+    const { id } = req.params;
+    const deliveryPersonId = req.user.id; // Assuming user auth middleware sets req.user
+
+    const result = await services.completeOrderByDelivery(parseInt(id), deliveryPersonId);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'Order completed successfully',
+        order: result.order
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+}
+
+export async function rejectOrderByDelivery(req, res) {
+  try {
+    const { id } = req.params;
+    const { rejection_reason } = req.body;
+    const deliveryPersonId = req.user.id; // Assuming user auth middleware sets req.user
+
+    if (!rejection_reason) {
+      return res.status(400).json({
+        success: false,
+        error: 'Rejection reason is required'
+      });
+    }
+
+    const result = await services.rejectOrderByDelivery(parseInt(id), deliveryPersonId, rejection_reason);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'Order rejected successfully',
+        order: result.order
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+}

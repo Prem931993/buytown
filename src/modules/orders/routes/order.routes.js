@@ -1,6 +1,7 @@
 import express from 'express';
 import * as controller from '../controllers/order.controller.js';
 import verifyDualAuth from '../../auth/middleware/dualAuthMiddleware.js';
+import verifyUserAuth from '../../auth/middleware/userDualAuthMiddleware.js';
 
 const router = express.Router();
 
@@ -44,5 +45,11 @@ router.post('/:id/calculate-delivery-charge', verifyDualAuth, controller.calcula
 router.post('/:id/generate-invoice-pdf', verifyDualAuth, controller.generateInvoicePDF);
 router.post('/:id/generate-confirmation-pdf', verifyDualAuth, controller.generateOrderConfirmationPDF);
 router.get('/:id/invoices', verifyDualAuth, controller.getInvoicesByOrder);
+
+// Delivery personnel complete order
+router.put('/:id/delivery-complete', verifyUserAuth, controller.completeOrderByDelivery);
+
+// Delivery personnel reject order
+router.put('/:id/delivery-reject', verifyUserAuth, controller.rejectOrderByDelivery);
 
 export default router;

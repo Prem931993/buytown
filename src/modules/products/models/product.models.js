@@ -38,8 +38,8 @@ export async function getAllProducts({ page = 1, limit = 10, search = '', catego
     query = query.where('byt_products.price', '<=', maxPrice);
   }
 
-  // Add ordering
-  query = query.orderBy('byt_products.name');
+  // Add ordering - ensure consistent order for pagination
+  query = query.orderBy('byt_products.created_at', 'desc').orderBy('byt_products.id', 'desc');
 
   // Add pagination
   const offset = (page - 1) * limit;
