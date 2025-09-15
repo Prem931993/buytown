@@ -1,5 +1,6 @@
 import * as models from '../models/order.models.js';
 import db from '../../../config/db.js';
+import * as notificationServices from '../../notifications/services/notification.services.js';
 
 function getFinancialYear() {
   const today = new Date();
@@ -120,6 +121,7 @@ export async function getOrderById(id) {
     // Build order details
     const orderDetails = {
       id: firstRow.id,
+      user_id: firstRow.user_id,
       order_number: firstRow.order_number,
       customer: {
         name: `${firstRow.firstname || ''} ${firstRow.lastname || ''}`.trim() || 'N/A',
@@ -350,7 +352,7 @@ export async function approveOrder(orderId, vehicleId, deliveryDistance, deliver
     // Get current order details to calculate new total
     const currentOrder = await db('byt_orders')
       .where('id', orderId)
-      .select('subtotal', 'shipping_amount', 'tax_amount', 'discount_amount', 'total_amount')
+      .select('subtotal', 'shipping_amount', 'tax_amount', 'discount_amount', 'total_amount', 'user_id', 'id', 'order_number', 'delivery_charges', 'delivery_distance', 'delivery_driver')
       .first();
 
     if (!currentOrder) {
@@ -392,10 +394,30 @@ export async function approveOrder(orderId, vehicleId, deliveryDistance, deliver
     const result = await db('byt_orders')
       .where('id', orderId)
       .update(updateData);
+    
+
 
     if (result > 0) {
       // Get updated order details
       const orderResult = await getOrderById(orderId);
+      console.log('Order approved:', orderResult.order);
+      await notificationServices.createOrderApprovalNotification(orderResult.order);
+      
+      // Send notification for order approval
+      try {
+        const user = {
+          id: orderResult.order.user_id,
+          first_name: orderResult.order.customer.name.split(' ')[0] || 'Customer',
+          last_name: orderResult.order.customer.name.split(' ').slice(1).join(' ') || '',
+          email: orderResult.order.customer.email,
+          phone: orderResult.order.customer.phone
+        };
+        await notificationServices.createOrderStatusNotification(orderResult.order, user, 'confirmed');
+
+      } catch (notificationError) {
+        console.error('Error sending order approval notification:', notificationError);
+      }
+
       return { success: true, order: orderResult.order };
     } else {
       return { success: false, error: 'Order not found or could not be updated' };
@@ -405,7 +427,7 @@ export async function approveOrder(orderId, vehicleId, deliveryDistance, deliver
   }
 }
 
-export async function rejectOrder(orderId, rejectionReason) {
+export async function rejectOrder(orderId, rejectionReason, rejectedByUserId = null) {
   try {
     const updateData = {
       status: 'rejected',
@@ -420,6 +442,41 @@ export async function rejectOrder(orderId, rejectionReason) {
     if (result > 0) {
       // Get updated order details
       const orderResult = await getOrderById(orderId);
+
+      // Send notification for order cancellation
+      try {
+        const user = {
+          id: orderResult.order.customer.id || orderResult.order.user_id,
+          first_name: orderResult.order.customer.name.split(' ')[0] || 'Customer',
+          last_name: orderResult.order.customer.name.split(' ').slice(1).join(' ') || '',
+          email: orderResult.order.customer.email,
+          phone: orderResult.order.customer.phone
+        };
+        await notificationServices.createOrderStatusNotification(orderResult.order, user, 'cancelled');
+
+        // Send detailed rejection notification with reference to who rejected
+        if (rejectedByUserId) {
+          const rejectedByUser = await db('byt_users')
+            .where('id', rejectedByUserId)
+            .select('firstname', 'lastname', 'role')
+            .first();
+
+          if (rejectedByUser) {
+            await notificationServices.createOrderRejectionNotification(
+              orderResult.order,
+              {
+                firstname: rejectedByUser.firstname,
+                lastname: rejectedByUser.lastname,
+                role: rejectedByUser.role
+              },
+              rejectionReason
+            );
+          }
+        }
+      } catch (notificationError) {
+        console.error('Error sending order rejection notification:', notificationError);
+      }
+
       return { success: true, order: orderResult.order };
     } else {
       return { success: false, error: 'Order not found or could not be updated' };
@@ -488,6 +545,21 @@ export async function markOrderCompleted(orderId) {
     if (result > 0) {
       // Get updated order details
       const orderResult = await getOrderById(orderId);
+
+      // Send notification for order approval
+      try {
+        const user = {
+          id: orderResult.order.user_id,
+          first_name: orderResult.order.customer.name.split(' ')[0] || 'Customer',
+          last_name: orderResult.order.customer.name.split(' ').slice(1).join(' ') || '',
+          email: orderResult.order.customer.email,
+          phone: orderResult.order.customer.phone
+        };
+        await notificationServices.createOrderStatusNotification(orderResult.order, user, 'delivered');
+
+      } catch (notificationError) {
+        console.error('Error sending order approval notification:', notificationError);
+      }
       return { success: true, order: orderResult.order };
     } else {
       return { success: false, error: 'Order not found or could not be updated' };
@@ -538,5 +610,145 @@ export async function calculateDeliveryCharge(orderId, vehicleId) {
     };
   } catch (error) {
     return { success: false, error: error.message };
+  }
+}
+
+export async function cancelOrderByCustomer(orderId, customerId, cancellationReason) {
+  try {
+    // Verify the order belongs to the customer
+    const order = await db('byt_orders')
+      .where('id', orderId)
+      .andWhere('user_id', customerId)
+      .first();
+
+    if (!order) {
+      return { success: false, error: 'Order not found or does not belong to this customer' };
+    }
+
+    // Check if order can be cancelled (not already completed or delivered)
+    if (['completed', 'delivered', 'cancelled'].includes(order.status)) {
+      return { success: false, error: 'Order cannot be cancelled at this stage' };
+    }
+
+    const updateData = {
+      status: 'cancelled',
+      rejection_reason: cancellationReason,
+      updated_at: new Date()
+    };
+
+    const result = await db('byt_orders')
+      .where('id', orderId)
+      .update(updateData);
+
+    if (result > 0) {
+      // Get updated order details
+      const orderResult = await getOrderById(orderId);
+
+      // Send notification for customer cancellation
+      try {
+        const customer = await db('byt_users')
+          .where('id', customerId)
+          .select('firstname', 'lastname')
+          .first();
+
+        if (customer) {
+          await notificationServices.createOrderCancellationNotification(orderResult.order, customer);
+        }
+      } catch (notificationError) {
+        console.error('Error sending order cancellation notification:', notificationError);
+      }
+
+      return { success: true, order: orderResult.order };
+    } else {
+      return { success: false, error: 'Order not found or could not be updated' };
+    }
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function completeOrderByDelivery(orderId, deliveryPersonId) {
+  try {
+    // Verify order assigned to deliveryPersonId
+    const order = await getOrderById(orderId);
+    if (!order.success || !order.order) {
+      return { success: false, error: 'Order not found' };
+    }
+    if (order.order.deliveryPersonId !== deliveryPersonId) {
+      return { success: false, error: 'Unauthorized: Order not assigned to this delivery person' };
+    }
+
+    // Update order status to completed
+    const updatedOrder = await updateOrder(orderId, { status: 'completed', status_updated_by: deliveryPersonId });
+
+    // Send notifications to admin and customer
+    const notificationModels = (await import('../../notifications/models/notification.models.js')).default;
+    const adminNotification = {
+      type: 'order',
+      title: 'Order Completed',
+      message: `Order #${orderId} has been completed by delivery personnel.`,
+      recipient_type: 'admin',
+      recipient_id: null,
+      reference_type: 'order',
+      reference_id: orderId
+    };
+    const userNotification = {
+      type: 'order',
+      title: 'Order Completed',
+      message: `Your order #${orderId} has been marked as completed.`,
+      recipient_type: 'user',
+      recipient_id: order.order.user_id,
+      reference_type: 'order',
+      reference_id: orderId
+    };
+    await notificationModels.createNotification(adminNotification);
+    await notificationModels.createNotification(userNotification);
+
+    return { success: true, order: updatedOrder };
+  } catch (error) {
+    throw new Error(`Error completing order: ${error.message}`);
+  }
+}
+
+export async function rejectOrderByDelivery(orderId, deliveryPersonId, rejectionReason) {
+  try {
+    // Verify order assigned to deliveryPersonId
+    const order = await getOrderById(orderId);
+    if (!order.success || !order.order) {
+      return { success: false, error: 'Order not found' };
+    }
+    if (order.order.deliveryPersonId !== deliveryPersonId) {
+      return { success: false, error: 'Unauthorized: Order not assigned to this delivery person' };
+    }
+
+    // Update order status to rejected with reason
+    const updatedOrder = await updateOrder(orderId, { status: 'rejected', rejection_reason: rejectionReason, status_updated_by: deliveryPersonId });
+
+    // Send notifications to admin and customer
+    const notificationModels = (await import('../../notifications/models/notification.models.js')).default;
+    const adminNotification = {
+      type: 'order',
+      title: 'Order Rejected',
+      message: `Order #${orderId} has been rejected by delivery personnel. Reason: ${rejectionReason}`,
+      recipient_type: 'admin',
+      recipient_id: null,
+      reference_type: 'order',
+      reference_id: orderId
+    };
+    const userNotification = {
+      type: 'order',
+      title: 'Order Rejected',
+      message: `Your order #${orderId} has been rejected. Reason: ${rejectionReason}`,
+      recipient_type: 'user',
+      recipient_id: order.order.user_id,
+      reference_type: 'order',
+      reference_id: orderId
+    };
+    await notificationModels.createNotification(adminNotification);
+    await notificationModels.createNotification(userNotification);
+
+    return { success: true, order: updatedOrder };
+  } catch (error) {
+    throw new Error(`Error rejecting order: ${error.message}`);
   }
 }

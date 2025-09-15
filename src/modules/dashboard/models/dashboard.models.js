@@ -55,7 +55,7 @@ export async function getRecentSales(days = 30) {
       )
       .where('byt_orders.created_at', '>=', date)
       .orderBy('byt_orders.created_at', 'desc')
-      .limit(20);
+      .limit(10);
 
     return { success: true, sales };
   } catch (error) {
@@ -308,6 +308,101 @@ export async function getDashboardSummary() {
         deliveryVehicles: deliveryVehicles.success ? deliveryVehicles.vehicles : [],
         topCustomers: topCustomers.success ? topCustomers.customers : []
       }
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// Get delivery person order statistics
+export async function getDeliveryPersonOrderStats(deliveryPersonId) {
+  try {
+    const stats = await db('byt_orders')
+      .select(
+        db.raw('COUNT(*) as total_assigned'),
+        db.raw('COUNT(CASE WHEN status = ? THEN 1 END) as completed', ['completed']),
+        db.raw('COUNT(CASE WHEN status = ? THEN 1 END) as pending', ['approved']),
+        db.raw('COUNT(CASE WHEN status = ? THEN 1 END) as rejected', ['rejected'])
+      )
+      .where('delivery_person_id', deliveryPersonId)
+      .first();
+
+    return {
+      success: true,
+      stats: {
+        total_assigned: parseInt(stats.total_assigned) || 0,
+        completed: parseInt(stats.completed) || 0,
+        pending: parseInt(stats.pending) || 0,
+        rejected: parseInt(stats.rejected) || 0
+      }
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// Get delivery person orders with details
+export async function getDeliveryPersonOrders(deliveryPersonId) {
+  try {
+    const orders = await db('byt_orders')
+      .leftJoin('byt_users', 'byt_orders.user_id', 'byt_users.id')
+      .leftJoin('byt_order_items', 'byt_orders.id', 'byt_order_items.order_id')
+      .leftJoin('byt_products', 'byt_order_items.product_id', 'byt_products.id')
+      .select(
+        'byt_orders.id',
+        'byt_orders.order_number',
+        'byt_orders.total_amount',
+        'byt_orders.status',
+        'byt_orders.created_at',
+        'byt_orders.delivery_address',
+        'byt_orders.delivery_vehicle',
+        'byt_users.firstname as customer_firstname',
+        'byt_users.lastname as customer_lastname',
+        'byt_users.phone_no as customer_phone',
+        'byt_order_items.quantity',
+        'byt_order_items.price as item_price',
+        'byt_products.name as product_name',
+        'byt_products.sku_code'
+      )
+      .where('byt_orders.delivery_person_id', deliveryPersonId)
+      .orderBy('byt_orders.created_at', 'desc');
+
+    // Group order items by order
+    const groupedOrders = orders.reduce((acc, item) => {
+      const orderId = item.id;
+      if (!acc[orderId]) {
+        acc[orderId] = {
+          id: item.id,
+          order_number: item.order_number,
+          total_amount: item.total_amount,
+          status: item.status,
+          created_at: item.created_at,
+          delivery_address: item.delivery_address,
+          delivery_vehicle: item.delivery_vehicle,
+          customer: {
+            firstname: item.customer_firstname,
+            lastname: item.customer_lastname,
+            phone_no: item.customer_phone
+          },
+          items: []
+        };
+      }
+      if (item.product_name) {
+        acc[orderId].items.push({
+          product_name: item.product_name,
+          sku_code: item.sku_code,
+          quantity: item.quantity,
+          price: item.item_price
+        });
+      }
+      return acc;
+    }, {});
+
+    const orderList = Object.values(groupedOrders);
+
+    return {
+      success: true,
+      orders: orderList
     };
   } catch (error) {
     return { success: false, error: error.message };

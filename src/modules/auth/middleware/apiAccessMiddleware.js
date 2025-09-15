@@ -3,7 +3,7 @@ import knex from '../../../config/db.js';
 
 const { sign, verify } = jwt;
 
-export function verifyApiToken(requiredRole) {
+export function verifyApiToken(...requiredRoles) {
   return (req, res, next) => {
     const authHeader = req.headers.authorization || req.headers.Authorization;
     const token = authHeader && authHeader.startsWith('Bearer ')
@@ -17,11 +17,10 @@ export function verifyApiToken(requiredRole) {
     verify(token, process.env.JWT_API_SECRET, (err, decoded) => {
       if (err) return res.status(403).json({ error: 'Invalid or expired API token.' });
 
-      // ✅ Check the role in token payload
-      if (requiredRole && decoded.role !== requiredRole) {
+      // ✅ Check if decoded.role matches any of the requiredRoles
+      if (requiredRoles.length > 0 && !requiredRoles.includes(decoded.role)) {
         return res.status(403).json({ error: 'Access denied: insufficient permissions.' });
       }
-
       req.apiClient = decoded; // attach decoded info for later use
       next();
     });

@@ -1,6 +1,7 @@
 import express from 'express';
 import * as controller from '../controllers/dashboard.controller.js';
 import verifyDualAuth from '../../auth/middleware/dualAuthMiddleware.js';
+import verifyUserDualAuth from '../../auth/middleware/userDualAuthMiddleware.js';
 
 const router = express.Router();
 
@@ -48,5 +49,8 @@ router.get('/monthly-revenue', verifyDualAuth, controller.getMonthlyRevenue);
 
 // Get order statistics
 router.get('/order-statistics', verifyDualAuth, controller.getOrderStatistics);
+
+// Get delivery person order stats (only for delivery persons)
+router.get('/delivery-person/stats', verifyUserDualAuth, controller.getDeliveryPersonOrderStats);
 
 export default router;

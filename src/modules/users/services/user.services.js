@@ -188,6 +188,11 @@ export const updateUser = async (id, userData) => {
         }
     }
 
+    // If password is provided, hash it
+    if (processedData.password) {
+        processedData.password = await hash(processedData.password, 10);
+    }
+
     // Handle vehicle assignments separately
     if (processedData.vehicle_ids !== undefined) {
         const vehicleIds = processedData.vehicle_ids;

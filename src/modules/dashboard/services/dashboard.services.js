@@ -136,3 +136,21 @@ export async function getOrderStatistics() {
     return { success: false, error: error.message };
   }
 }
+
+export async function getDeliveryPersonOrderStats(deliveryPersonId) {
+  try {
+    // Fetch order stats summary
+    const stats = await models.getDeliveryPersonOrderStats(deliveryPersonId);
+
+    // Fetch detailed orders assigned to delivery person
+    const orders = await models.getDeliveryPersonOrders(deliveryPersonId);
+
+    return {
+      success: true,
+      stats: stats.stats,
+      orders: orders.orders
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}

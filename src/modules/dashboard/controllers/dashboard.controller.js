@@ -363,3 +363,30 @@ export async function getAllCustomersWithOrders(req, res) {
     });
   }
 }
+
+export async function getDeliveryPersonOrderStats(req, res) {
+  try {
+    const deliveryPersonId = req.user.id; // Get from authenticated user
+    const result = await services.getDeliveryPersonOrderStats(deliveryPersonId);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        data: {
+          stats: result.stats,
+          orders: result.orders
+        }
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+}

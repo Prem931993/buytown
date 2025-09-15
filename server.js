@@ -34,6 +34,7 @@ import pageRoutes from './src/modules/pages/routes/page.routes.js';
 import generalSettingsRoutes from './src/modules/general-settings/routes/generalSettings.routes.js';
 import userGeneralSettingsRoutes from './src/modules/general-settings/routes/userGeneralSettings.routes.js';
 import notificationRoutes from './src/modules/notifications/routes/notification.routes.js';
+import userNotificationRoutes from './src/modules/notifications/routes/userNotification.routes.js';
 import userWishlistRoutes from './src/modules/wishlist/routes/userWishlist.routes.js';
 
 const app = express();
@@ -139,6 +140,7 @@ app.use('/api/v1/user/pages', userPageRoutes);
 app.use('/api/v1/general-settings', generalSettingsRoutes);
 app.use('/api/v1/user/general-settings', userGeneralSettingsRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
+app.use('/api/v1/user/notifications', userNotificationRoutes);
 app.use('/api/v1/user/wishlist', userWishlistRoutes);
 
 app.post('/', (req, res) => res.send('BuyTown API Microservice'));

@@ -137,7 +137,7 @@ export async function loginService(data, apiRole) {
     return { error: 'Incorrect password. Please double-check and try again.', status: 401 };
   }
 
-  if (apiRole !== user.role_id) {
+  if (![1, 2, 3].includes(user.role_id)) {
     return { error: 'Your account does not have permission to use this page.', status: 403 };
   }
 
