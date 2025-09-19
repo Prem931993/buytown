@@ -7,7 +7,8 @@ export async function createOrder(req, res) {
       shipping_address,
       billing_address,
       payment_method,
-      notes
+      notes,
+      delivery_distance
     } = req.body;
 
     if (!shipping_address || !payment_method) {
@@ -21,7 +22,8 @@ export async function createOrder(req, res) {
       shipping_address,
       billing_address: billing_address || shipping_address,
       payment_method,
-      notes
+      notes,
+      delivery_distance
     });
 
     if (result.error) {

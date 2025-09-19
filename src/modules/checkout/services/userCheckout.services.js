@@ -36,7 +36,8 @@ export async function createOrderService(userId, orderData) {
     shipping_address,
     billing_address,
     payment_method,
-    notes
+    notes,
+    delivery_distance
   } = orderData;
 
   // Start transaction
@@ -59,21 +60,25 @@ export async function createOrderService(userId, orderData) {
     const discount_amount = 0; // Can be implemented later for coupons/discounts
     const shipping_amount = 0; // Can be implemented later for shipping calculations
 
-    // Calculate delivery distance only (delivery charges will be 0 during awaiting_confirmation)
+    // Use provided delivery distance if available, else calculate
     let deliveryDistance = 0;
 
-    try {
-      if (shipping_address) {
-        const parsedAddress = typeof shipping_address === 'string' ? JSON.parse(shipping_address) : shipping_address;
+    if (typeof delivery_distance === 'number' && delivery_distance > 0) {
+      deliveryDistance = delivery_distance;
+    } else {
+      try {
+        if (shipping_address) {
+          const parsedAddress = typeof shipping_address === 'string' ? JSON.parse(shipping_address) : shipping_address;
 
-        // For now, we'll use a simplified distance calculation
-        // In production, you would integrate with Google Maps API or similar service
-        // This is a placeholder calculation - you should replace with actual distance calculation
-        deliveryDistance = calculateDeliveryDistance(parsedAddress);
+          // For now, we'll use a simplified distance calculation
+          // In production, you would integrate with Google Maps API or similar service
+          // This is a placeholder calculation - you should replace with actual distance calculation
+          deliveryDistance = calculateDeliveryDistance(parsedAddress);
+        }
+      } catch (distanceError) {
+        console.warn('Error calculating delivery distance:', distanceError);
+        // Continue with order creation even if distance calculation fails
       }
-    } catch (distanceError) {
-      console.warn('Error calculating delivery distance:', distanceError);
-      // Continue with order creation even if distance calculation fails
     }
 
     // Delivery charges will be 0 during awaiting_confirmation status
