@@ -47,6 +47,34 @@ export const createUser = async (req, res) => {
             userData.vehicle_ids = vehicleIds.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
         }
 
+        // Handle vehicle_numbers from FormData (object format)
+        if (req.body) {
+            const vehicleNumbers = {};
+            Object.keys(req.body).forEach(key => {
+                if (key.startsWith('vehicle_numbers[') && key.endsWith(']')) {
+                    const vehicleId = key.match(/vehicle_numbers\[(\d+)\]/)[1];
+                    vehicleNumbers[vehicleId] = req.body[key];
+                }
+            });
+            if (Object.keys(vehicleNumbers).length > 0) {
+                userData.vehicle_numbers = vehicleNumbers;
+            }
+        }
+
+        // Handle vehicle_numbers from FormData (object format)
+        if (req.body) {
+            const vehicleNumbers = {};
+            Object.keys(req.body).forEach(key => {
+                if (key.startsWith('vehicle_numbers[') && key.endsWith(']')) {
+                    const vehicleId = key.match(/vehicle_numbers\[(\d+)\]/)[1];
+                    vehicleNumbers[vehicleId] = req.body[key];
+                }
+            });
+            if (Object.keys(vehicleNumbers).length > 0) {
+                userData.vehicle_numbers = vehicleNumbers;
+            }
+        }
+
         const userId = await userService.createUser(userData);
         res.status(201).json({ id: userId, message: 'User created successfully' });
     } catch (error) {

@@ -13,6 +13,7 @@ const router = Router();
 // Routes for variations
 router.get('/', variationController.getAllVariations);
 router.get('/dropdown', variationController.getVariationsForDropdown);
+router.get('/autocomplete', variationController.autocompleteVariations); // New autocomplete endpoint
 router.get('/:id', variationController.getVariationById);
 router.post('/', variationController.createVariation);
 router.put('/:id', variationController.updateVariation);

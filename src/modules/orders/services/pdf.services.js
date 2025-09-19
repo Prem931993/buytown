@@ -57,12 +57,14 @@ function addWatermark(doc) {
 
 async function getOrderDetails(orderId) {
   try {
+    // First, get order items and basic order info
     const orderRows = await db('byt_orders')
       .leftJoin('byt_users', 'byt_orders.user_id', 'byt_users.id')
       .leftJoin('byt_order_items', 'byt_orders.id', 'byt_order_items.order_id')
       .leftJoin('byt_products', 'byt_order_items.product_id', 'byt_products.id')
       .leftJoin('byt_product_variations', 'byt_order_items.variation_id', 'byt_product_variations.id')
       .leftJoin('byt_variations', 'byt_product_variations.variation_id', 'byt_variations.id')
+      .leftJoin('byt_users as delivery_user', 'byt_orders.delivery_person_id', 'delivery_user.id')
       .where('byt_orders.id', orderId)
       .select(
         'byt_orders.*',
@@ -76,10 +78,26 @@ async function getOrderDetails(orderId) {
         'byt_order_items.total_price as item_total',
         'byt_products.name as product_name',
         'byt_products.sku_code as product_sku',
-        'byt_variations.label as variation_name'
+        'byt_products.hsn_code as product_hsn',
+        'byt_products.gst as product_gst',
+        'byt_variations.label as variation_name',
+        'delivery_user.vehicle_number as delivery_vehicle_number',
+        'byt_orders.delivery_distance'  // Added delivery_distance here
       );
 
     if (!orderRows.length) return null;
+
+    // Get vehicle information separately to avoid duplication
+    const vehicleInfo = await db('byt_orders')
+      .leftJoin('byt_users as delivery_user', 'byt_orders.delivery_person_id', 'delivery_user.id')
+      .leftJoin('byt_user_vehicle', 'delivery_user.id', 'byt_user_vehicle.user_id')
+      .leftJoin('byt_vehicle_management', 'byt_user_vehicle.vehicle_id', 'byt_vehicle_management.id')
+      .where('byt_orders.id', orderId)
+      .whereNotNull('byt_orders.delivery_person_id')
+      .select(
+        'byt_vehicle_management.vehicle_type as delivery_vehicle_type'
+      )
+      .first();
 
     const firstRow = orderRows[0];
 
@@ -109,23 +127,41 @@ async function getOrderDetails(orderId) {
       discount: parseFloat(firstRow.discount_amount) || 0,
       total: parseFloat(firstRow.total_amount) || 0,
       deliveryCharges: parseFloat(firstRow.delivery_charges) || 0,
+      deliveryDistance: parseFloat(firstRow.delivery_distance) || 0,  // Added deliveryDistance here
+      deliveryVehicleNumber: firstRow.delivery_vehicle_number || 'N/A',
+      deliveryVehicleType: vehicleInfo?.delivery_vehicle_type || 'N/A',
       shippingAddress,
       billingAddress,
       items: []
     };
 
+    // Use a Set to track unique items and avoid duplicates
+    const uniqueItems = new Map();
+
     orderRows.forEach(row => {
-      if (row.item_id) {
-        orderDetails.items.push({
+      if (row.item_id && !uniqueItems.has(row.item_id)) {
+        const gstRate = parseFloat(row.product_gst) || 0;
+        const basePrice = parseFloat(row.item_price) || 0;
+        const quantity = row.quantity || 0;
+        const taxAmount = basePrice * gstRate / 100 * quantity;
+        const totalWithoutTax = basePrice * quantity;
+
+        uniqueItems.set(row.item_id, {
           id: row.item_id,
           name: row.product_name || 'Unknown Product',
           sku: row.product_sku || 'N/A',
-          price: parseFloat(row.item_price) || 0,
-          quantity: row.quantity || 0,
+          hsn_code: row.product_hsn || 'N/A',
+          price: basePrice,
+          quantity: quantity,
+          tax_rate: gstRate,
+          tax_amount: taxAmount,
+          total_without_tax: totalWithoutTax,
           total: parseFloat(row.item_total) || 0
         });
       }
     });
+
+    orderDetails.items = Array.from(uniqueItems.values());
 
     return orderDetails;
   } catch (error) {
@@ -163,59 +199,91 @@ function renderInvoice(doc, order, title = 'TAX INVOICE') {
   }
   doc.text(`Place Of Supply: Tamil Nadu (33)`, 50, doc.y + 5);
 
-  doc.moveDown(1);
+  // Shipping Address
+  if (order.shippingAddress) {
+    doc.font('Bold').fontSize(11).text('Shipping Address:', 300, doc.y - 40);
+    doc.font('Regular').fontSize(10).text(order.shippingAddress.street || '', 300);
+    doc.text(`${order.shippingAddress.city || ''} ${order.shippingAddress.state || ''} ${order.shippingAddress.zip || ''}`, 300);
+    doc.text(order.shippingAddress.country || '', 300);
+  }
+
+  // Vehicle Information
+  if (order.deliveryVehicleNumber !== 'N/A' || order.deliveryVehicleType !== 'N/A') {
+    doc.font('Bold').fontSize(11).text('Delivery Details:', 50, doc.y + 10);
+    doc.font('Regular').fontSize(10).text(`Vehicle Number: ${order.deliveryVehicleNumber}`, 50);
+    doc.text(`Vehicle Type: ${order.deliveryVehicleType}`, 50);
+    doc.text(`Delivery distance: ${order.deliveryDistance} (km)`, 50);
+  }
+
+  doc.moveDown(2);
 
   // Table Header
   let tableTop = doc.y + 10;
-  const colX = { sno: 50, desc: 100, hsn: 300, qty: 380, rate: 430, amt: 500 };
+  const colX = {
+    sno: 30,
+    product: 50,
+    sku: 200,
+    hsn: 280,
+    price: 340,
+    qty: 390,
+    taxRate: 430,
+    taxAmt: 480,
+    totalWithoutTax: 530
+  };
 
-  doc.font('Bold').fontSize(10);
+  doc.font('Bold').fontSize(8);
   doc.text('S.NO', colX.sno, tableTop);
-  doc.text('Description', colX.desc, tableTop);
+  doc.text('Product', colX.product, tableTop);
+  doc.text('SKU', colX.sku, tableTop);
   doc.text('HSN/SAC', colX.hsn, tableTop);
+  doc.text('Price', colX.price, tableTop);
   doc.text('Qty', colX.qty, tableTop);
-  doc.text('Rate', colX.rate, tableTop);
-  doc.text('Amount', colX.amt, tableTop);
+  doc.text('Tax Rate', colX.taxRate, tableTop);
+  doc.text('Tax Amount', colX.taxAmt, tableTop);
+  doc.text('Total (Without Tax)', colX.totalWithoutTax, tableTop);
 
-  doc.moveTo(50, tableTop - 2).lineTo(550, tableTop - 2).stroke();
+  doc.moveTo(30, tableTop - 2).lineTo(570, tableTop - 2).stroke();
 
   // Table Rows
-  doc.font('Regular').fontSize(10);
-  let y = tableTop + 15;
+  doc.font('Regular').fontSize(8);
+  let y = tableTop + 20;
   order.items.forEach((item, idx) => {
     doc.text(idx + 1, colX.sno, y);
-    doc.text(item.name, colX.desc, y, { width: 180 });
-    doc.text(item.sku || '—', colX.hsn, y);
-    doc.text(item.quantity.toString(), colX.qty, y);
-    doc.text(item.price.toFixed(2), colX.rate, y);
-    doc.text(item.total.toFixed(2), colX.amt, y);
-    y += 20;
+    doc.text(item.name, colX.product, y, { width: 140 });
+    doc.text(item.sku, colX.sku, y, { width: 90 });
+    doc.text(item.hsn_code || '—', colX.hsn, y, { width: 60 });
+    doc.text(item.price.toFixed(2), colX.price, y, { width: 60 });
+    doc.text(item.quantity.toString(), colX.qty, y, { width: 60 });
+    doc.text(`${item.tax_rate}%`, colX.taxRate, y, { width: 30 });
+    doc.text(item.tax_amount.toFixed(2), colX.taxAmt, y, { width: 30 });
+    doc.text(item.total_without_tax.toFixed(2), colX.totalWithoutTax, y, { width: 100 });
+    y += 18;
   });
 
   doc.moveDown(2);
 
   // Totals Section
-  y += 10;
+  y += 15;
   doc.font('Regular').fontSize(10);
   doc.text(`Sub Total`, 400, y); doc.text(order.subtotal.toFixed(2), 500, y, { width: 80, align: 'right' });
 
-  y += 15;
-  doc.text(`Shipping charge`, 400, y);
-  doc.text(order.shippingCost.toFixed(2), 500, y, { width: 80, align: 'right' });
+
+
 
   if (order.tax > 0) {
-    y += 15;
-    let halfTax = (order.tax / 2).toFixed(2);
-    doc.text(`CGST9 (9%)`, 400, y); doc.text(halfTax, 500, y, { width: 80, align: 'right' });
-    y += 15;
-    doc.text(`SGST9 (9%)`, 400, y); doc.text(halfTax, 500, y, { width: 80, align: 'right' });
+    y += 20;
+    doc.text(`Tax`, 400, y); doc.text(order.tax.toFixed(2), 500, y, { width: 80, align: 'right' });
   }
 
-  y += 15;
+  y += 20;
+  doc.text(`Delivery charge`, 400, y);
+  doc.text(order.deliveryCharges.toFixed(2), 500, y, { width: 80, align: 'right' });
+
+  y += 20;
   doc.font('Bold').text(`Total`, 400, y); doc.text(order.total.toFixed(2), 500, y, { width: 80, align: 'right' });
 
   y += 20;
-  doc.font('Bold').text(`TOTAL`, 400, y); doc.text(order.total.toFixed(2), 500, y, { width: 80, align: 'right' });
+  // Removed duplicate TOTAL line
 
   y += 20;
   doc.font('Regular').text(`DATE OF BILL : ${new Date(order.orderDate).toLocaleDateString('en-GB')}`, 50, y);

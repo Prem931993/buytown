@@ -10,5 +10,9 @@ router.post('/new-arrivals', verifyUserDualAuth, userProductController.getNewArr
 router.post('/top-selling-products', verifyUserDualAuth, userProductController.getTopSellingProducts);
 router.post('/random-products', verifyUserDualAuth, userProductController.getRandomProducts);
 router.post('/global-search', verifyUserDualAuth, userProductController.getGlobalSearch);
+router.get('/filters', verifyUserDualAuth, userProductController.getProductFilterValues);
+
+// Get single product by ID for users
+router.get('/:id', verifyUserDualAuth, userProductController.getUserProductById);
 
 export default router;

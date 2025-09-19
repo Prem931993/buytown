@@ -119,7 +119,8 @@ export const createUser = async (userData) => {
         status: processedStatus,
         profile_photo: userData.profile_photo || null,
         license: userData.license || null,
-        username: userData.username || null
+        username: userData.username || null,
+        vehicle_number: userData.vehicle_number || null
     };
 
     const userId = await userModel.createUser(processedData);
@@ -200,7 +201,18 @@ export const updateUser = async (id, userData) => {
 
         // Update vehicle assignments
         if (Array.isArray(vehicleIds)) {
-            await userModel.assignVehiclesToUser(id, vehicleIds);
+            await userModel.assignVehiclesToUser(id, vehicleIds, processedData.vehicle_numbers);
+        }
+    }
+
+    // Handle vehicle_numbers separately if vehicle_ids not provided
+    if (processedData.vehicle_numbers !== undefined && processedData.vehicle_ids === undefined) {
+        const vehicleNumbers = processedData.vehicle_numbers;
+        delete processedData.vehicle_numbers; // Remove from processedData
+
+        // Update vehicle numbers for existing assignments
+        if (typeof vehicleNumbers === 'object') {
+            await userModel.updateVehicleNumbers(id, vehicleNumbers);
         }
     }
 

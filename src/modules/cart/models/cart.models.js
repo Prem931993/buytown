@@ -124,6 +124,7 @@ export async function getUserCartItems(userId) {
       'p.description',
       'p.stock as available_stock',
       'p.status as product_status',
+      'p.gst as product_gst',
       'cat.name as category_name',
       'b.name as brand_name',
       'pv.id as variation_id',
@@ -236,32 +237,47 @@ export async function removeCartItem(userId, cartItemId) {
     .del();
 }
 
-// Get cart summary with detailed tax breakdown based on active tax configuration
+// Get cart summary with detailed tax breakdown based on individual product GST rates
 export async function getCartSummary(userId) {
-  // Get active tax rate from tax configurations
-  const taxConfig = await knex('byt_tax_configurations')
-    .select('tax_rate')
-    .where('is_active', true)
-    .first();
-
-  const taxRate = taxConfig ? parseFloat(taxConfig.tax_rate) / 100 : 0; // Convert percentage to decimal
-
-  // Get cart items
+  // Get cart items with product GST rates
   const cartItems = await knex('byt_cart_items as ci')
     .leftJoin('byt_carts as c', 'ci.cart_id', 'c.id')
+    .leftJoin('byt_products as p', 'ci.product_id', 'p.id')
     .select(
       'ci.quantity',
-      'ci.total_price'
+      'ci.total_price',
+      'ci.price',
+      'p.gst as product_gst',
+      'p.name as product_name',
+      'p.id as product_id'
     )
-    .where('c.user_id', userId);
+    .where('c.user_id', userId)
+    .where('p.deleted_at', null);
 
   let subtotal = 0;
   let totalTax = 0;
+  const itemTaxBreakdown = [];
 
   for (const item of cartItems) {
-    subtotal += parseFloat(item.total_price);
-    const itemTax = parseFloat(item.total_price) * taxRate;
+    const basePrice = parseFloat(item.price);
+    const gstRate = parseFloat(item.product_gst) || 0; // Use product GST rate, default to 0 if not set
+    const gstDecimal = gstRate / 100; // Convert percentage to decimal
+    const itemTax = basePrice * gstDecimal * item.quantity;
+    const itemPriceWithTax = basePrice * item.quantity + itemTax;
+
+    subtotal += basePrice * item.quantity;
     totalTax += itemTax;
+
+    // Add item tax breakdown
+    itemTaxBreakdown.push({
+      product_id: item.product_id,
+      product_name: item.product_name,
+      quantity: item.quantity,
+      price: basePrice,
+      total_price: itemPriceWithTax,
+      gst_rate: gstRate,
+      tax_amount: itemTax
+    });
   }
 
   const totalAmount = subtotal + totalTax;
@@ -272,7 +288,7 @@ export async function getCartSummary(userId) {
     subtotal: subtotal,
     tax_amount: totalTax,
     total_amount: totalAmount,
-    tax_rate: taxRate * 100 // Return as percentage for display
+    item_tax_breakdown: itemTaxBreakdown
   };
 }
 
