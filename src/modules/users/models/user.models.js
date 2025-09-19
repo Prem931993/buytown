@@ -9,7 +9,7 @@ export const getAllUsers = async () => {
         const vehicleAssignments = await db('byt_user_vehicle')
             .join('byt_vehicle_management', 'byt_user_vehicle.vehicle_id', 'byt_vehicle_management.id')
             .whereIn('byt_user_vehicle.user_id', userIds)
-            .select('byt_user_vehicle.user_id', 'byt_vehicle_management.*');
+            .select('byt_user_vehicle.user_id', 'byt_user_vehicle.vehicle_number', 'byt_vehicle_management.*');
 
         // Group vehicles by user_id
         const vehiclesByUser = {};
@@ -38,7 +38,7 @@ export const getUserById = async (id) => {
     const vehicles = await db('byt_user_vehicle')
         .join('byt_vehicle_management', 'byt_user_vehicle.vehicle_id', 'byt_vehicle_management.id')
         .where('byt_user_vehicle.user_id', id)
-        .select('byt_vehicle_management.*');
+        .select('byt_user_vehicle.vehicle_number', 'byt_vehicle_management.*');
 
     return {
         ...user,
@@ -155,7 +155,7 @@ export const deleteUser = async (id) => {
 
 // Add more user-related database operations as needed
 
-export const assignVehiclesToUser = async (userId, vehicleIds) => {
+export const assignVehiclesToUser = async (userId, vehicleIds, vehicleNumbers = {}) => {
     if (!userId || !Array.isArray(vehicleIds)) {
         throw new Error('Invalid parameters for assigning vehicles to user');
     }
@@ -163,13 +163,27 @@ export const assignVehiclesToUser = async (userId, vehicleIds) => {
     // First, delete existing vehicle assignments for the user
     await db('byt_user_vehicle').where({ user_id: userId }).del();
 
-    // Insert new vehicle assignments
+    // Insert new vehicle assignments with vehicle numbers
     const insertData = vehicleIds.map(vehicleId => ({
         user_id: userId,
-        vehicle_id: vehicleId
+        vehicle_id: vehicleId,
+        vehicle_number: vehicleNumbers[vehicleId] || null
     }));
 
     if (insertData.length > 0) {
         await db('byt_user_vehicle').insert(insertData);
+    }
+};
+
+export const updateVehicleNumbers = async (userId, vehicleNumbers) => {
+    if (!userId || typeof vehicleNumbers !== 'object') {
+        throw new Error('Invalid parameters for updating vehicle numbers');
+    }
+
+    // Update vehicle numbers for existing assignments
+    for (const [vehicleId, vehicleNumber] of Object.entries(vehicleNumbers)) {
+        await db('byt_user_vehicle')
+            .where({ user_id: userId, vehicle_id: parseInt(vehicleId, 10) })
+            .update({ vehicle_number: vehicleNumber || null });
     }
 };

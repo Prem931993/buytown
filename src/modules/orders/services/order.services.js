@@ -75,12 +75,14 @@ export async function createOrder(orderData) {
 
 export async function getOrderById(id) {
   try {
+    // First, get order with items and basic info
     const orderRows = await db('byt_orders')
       .leftJoin('byt_users', 'byt_orders.user_id', 'byt_users.id')
       .leftJoin('byt_order_items', 'byt_orders.id', 'byt_order_items.order_id')
       .leftJoin('byt_products', 'byt_order_items.product_id', 'byt_products.id')
       .leftJoin('byt_product_variations', 'byt_order_items.variation_id', 'byt_product_variations.id')
       .leftJoin('byt_variations', 'byt_product_variations.variation_id', 'byt_variations.id')
+      .leftJoin('byt_users as delivery_user', 'byt_orders.delivery_person_id', 'delivery_user.id')
       .where('byt_orders.id', id)
       .select(
         'byt_orders.*',
@@ -94,14 +96,37 @@ export async function getOrderById(id) {
         'byt_order_items.total_price as item_total',
         'byt_products.name as product_name',
         'byt_products.sku_code as product_sku',
-        'byt_variations.label as variation_name'
+        'byt_products.hsn_code as product_hsn',
+        'byt_products.gst as product_gst',
+        'byt_variations.label as variation_name',
+        'delivery_user.firstname as delivery_firstname',
+        'delivery_user.lastname as delivery_lastname',
+        'delivery_user.vehicle_number as delivery_vehicle_number'
       );
 
     if (orderRows.length === 0) {
       return { success: false, error: 'Order not found' };
     }
 
-    const firstRow = orderRows[0];
+    // Get vehicle information separately to avoid duplication
+    const vehicleInfo = await db('byt_orders')
+      .leftJoin('byt_users as delivery_user', 'byt_orders.delivery_person_id', 'delivery_user.id')
+      .leftJoin('byt_user_vehicle', 'delivery_user.id', 'byt_user_vehicle.user_id')
+      .leftJoin('byt_vehicle_management', 'byt_user_vehicle.vehicle_id', 'byt_vehicle_management.id')
+      .where('byt_orders.id', id)
+      .whereNotNull('byt_orders.delivery_person_id')
+      .select(
+        'byt_vehicle_management.vehicle_type as delivery_vehicle_type',
+        'byt_user_vehicle.vehicle_number as assigned_vehicle_number'
+      )
+      .first();
+
+    // Add vehicle info to the first row
+    const firstRow = {
+      ...orderRows[0],
+      delivery_vehicle_type: vehicleInfo?.delivery_vehicle_type,
+      assigned_vehicle_number: vehicleInfo?.assigned_vehicle_number
+    };
 
     // Parse addresses if they exist
     let shippingAddress = null;
@@ -141,6 +166,10 @@ export async function getOrderById(id) {
       deliveryCharges: parseFloat(firstRow.delivery_charges) || 0,
       deliveryPersonId: firstRow.delivery_person_id || null,
       deliveryDriver: firstRow.delivery_driver || null,
+      vehicle: firstRow.delivery_person_id ? {
+        vehicle_number: firstRow.assigned_vehicle_number || firstRow.delivery_vehicle_number || 'N/A',
+        vehicle_type: firstRow.delivery_vehicle_type || 'N/A'
+      } : null,
       shippingAddress: shippingAddress,
       billingAddress: billingAddress,
       items: [],
@@ -156,13 +185,21 @@ export async function getOrderById(id) {
     // Add items
     orderRows.forEach(row => {
       if (row.item_id) {
+        const gstRate = parseFloat(row.product_gst) || 0;
+        const basePrice = parseFloat(row.item_price) || 0;
+        const quantity = row.quantity || 0;
+        const taxAmount = basePrice * gstRate / 100 * quantity;
+
         orderDetails.items.push({
           id: row.item_id,
           name: row.product_name || 'Unknown Product',
           sku: row.product_sku || 'N/A',
-          price: parseFloat(row.item_price) || 0,
-          quantity: row.quantity || 0,
+          hsn_code: row.product_hsn || 'N/A',
+          price: basePrice,
+          quantity: quantity,
           total: parseFloat(row.item_total) || 0,
+          gst_rate: gstRate,
+          tax_amount: taxAmount,
           type: 'product' // Mark as product item
         });
       }
@@ -188,12 +225,14 @@ export async function getOrderById(id) {
 
 export async function getAllOrders() {
   try {
-    const orders = await db('byt_orders')
+    // First, get orders with items and basic info
+    const ordersWithItems = await db('byt_orders')
       .leftJoin('byt_users', 'byt_orders.user_id', 'byt_users.id')
       .leftJoin('byt_order_items', 'byt_orders.id', 'byt_order_items.order_id')
       .leftJoin('byt_products', 'byt_order_items.product_id', 'byt_products.id')
       .leftJoin('byt_product_variations', 'byt_order_items.variation_id', 'byt_product_variations.id')
       .leftJoin('byt_variations', 'byt_product_variations.variation_id', 'byt_variations.id')
+      .leftJoin('byt_users as delivery_user', 'byt_orders.delivery_person_id', 'delivery_user.id')
       .select(
         'byt_orders.*',
         'byt_users.firstname',
@@ -206,9 +245,43 @@ export async function getAllOrders() {
         'byt_order_items.total_price as item_total',
         'byt_products.name as product_name',
         'byt_products.sku_code as product_sku',
-        'byt_variations.label as variation_name'
+        'byt_products.hsn_code as product_hsn',
+        'byt_products.gst as product_gst',
+        'byt_variations.label as variation_name',
+        'delivery_user.firstname as delivery_firstname',
+        'delivery_user.lastname as delivery_lastname',
+        'delivery_user.vehicle_number as delivery_vehicle_number'
       )
       .orderBy('byt_orders.created_at', 'desc');
+
+    // Get vehicle information separately to avoid duplication
+    const vehicleInfo = await db('byt_orders')
+      .leftJoin('byt_users as delivery_user', 'byt_orders.delivery_person_id', 'delivery_user.id')
+      .leftJoin('byt_user_vehicle', 'delivery_user.id', 'byt_user_vehicle.user_id')
+      .leftJoin('byt_vehicle_management', 'byt_user_vehicle.vehicle_id', 'byt_vehicle_management.id')
+      .whereNotNull('byt_orders.delivery_person_id')
+      .select(
+        'byt_orders.id as order_id',
+        'byt_vehicle_management.vehicle_type as delivery_vehicle_type',
+        'byt_user_vehicle.vehicle_number as assigned_vehicle_number'
+      )
+      .distinct('byt_orders.id');
+
+    // Create a map of order_id to vehicle info
+    const vehicleMap = new Map();
+    vehicleInfo.forEach(vehicle => {
+      vehicleMap.set(vehicle.order_id, {
+        vehicle_type: vehicle.delivery_vehicle_type,
+        vehicle_number: vehicle.assigned_vehicle_number
+      });
+    });
+
+    // Now process orders with vehicle info
+    const orders = ordersWithItems.map(row => ({
+      ...row,
+      delivery_vehicle_type: vehicleMap.get(row.id)?.vehicle_type,
+      assigned_vehicle_number: vehicleMap.get(row.id)?.vehicle_number
+    }));
 
     // Group orders and their items
     const ordersMap = new Map();
@@ -253,6 +326,11 @@ export async function getAllOrders() {
           delivery_distance: parseFloat(row.delivery_distance) || 0,
           delivery_charges: parseFloat(row.delivery_charges) || 0,
           delivery_person_id: row.delivery_person_id || null,
+          delivery_driver: row.delivery_driver || null,
+          vehicle: row.delivery_person_id ? {
+            vehicle_number: row.assigned_vehicle_number || row.delivery_vehicle_number || 'N/A',
+            vehicle_type: row.delivery_vehicle_type || 'N/A'
+          } : null,
           shipping_address: shippingAddress,
           billing_address: billingAddress,
           items: [],
@@ -273,6 +351,7 @@ export async function getAllOrders() {
           id: row.item_id,
           name: row.product_name || 'Unknown Product',
           sku: row.product_sku || 'N/A',
+          hsn_code: row.product_hsn || 'N/A',
           price: parseFloat(row.item_price) || 0,
           quantity: row.quantity || 0,
           total: parseFloat(row.item_total) || 0,
@@ -384,7 +463,6 @@ export async function approveOrder(orderId, vehicleId, deliveryDistance, deliver
       status: 'approved',
       delivery_distance: deliveryDistance,
       delivery_charges: deliveryCharges,
-      delivery_vehicle: vehicle.vehicle_type,
       delivery_person_id: deliveryPersonId,
       delivery_driver: deliveryPersonName,
       total_amount: newTotal,
@@ -665,7 +743,7 @@ export async function cancelOrderByCustomer(orderId, customerId, cancellationRea
   } catch (error) {
     return { success: false, error: error.message };
   }
-}
+  }
 
 export async function completeOrderByDelivery(orderId, deliveryPersonId) {
   try {

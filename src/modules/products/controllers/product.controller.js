@@ -91,6 +91,16 @@ export async function createProduct(req, res) {
       }
     }
 
+    // Parse related product IDs if provided
+    let relatedProductIds = [];
+    if (productData.related_product_ids) {
+      try {
+        relatedProductIds = JSON.parse(productData.related_product_ids);
+      } catch (e) {
+        relatedProductIds = [];
+      }
+    }
+
     // Convert status string to integer if provided
     if (productData.status) {
       switch (productData.status) {
@@ -138,6 +148,9 @@ export async function createProduct(req, res) {
         return res.status(500).json({ statusCode: 500, error: 'Failed to upload images' });
       }
     }
+
+    // Attach relatedProductIds to productData for service layer
+    productData.related_product_ids = relatedProductIds;
 
     const result = await services.createProductService(productData, images, variations, childProductIds);
     if (result.error) {
@@ -200,6 +213,16 @@ export async function updateProduct(req, res) {
       }
     }
 
+    // Parse related product IDs if provided
+    let relatedProductIds = null;
+    if (productData.related_product_ids) {
+      try {
+        relatedProductIds = JSON.parse(productData.related_product_ids);
+      } catch (e) {
+        relatedProductIds = [];
+      }
+    }
+
     // Handle images if uploaded
     // Only update images if files were actually uploaded
     let images = null;
@@ -232,6 +255,9 @@ export async function updateProduct(req, res) {
         return res.status(500).json({ statusCode: 500, error: 'Failed to upload images' });
       }
     }
+
+    // Attach relatedProductIds to productData for service layer
+    productData.related_product_ids = relatedProductIds;
 
     const result = await services.updateProductService(id, productData, images, variations, imagesToRemove, childProductIds);
     if (result.error) {
@@ -317,6 +343,7 @@ export async function importProducts(req, res) {
           category_id: productData.category_id ? parseInt(productData.category_id) : null,
           brand_id: brandId,
           sku_code: productData.sku_code || null,
+          hsn_code: productData.hsn_code || null,
           color: productData.color || null,
           size_dimension: productData.size_dimension || null,
           weight_kg: productData.weight_kg ? parseFloat(productData.weight_kg) : null,

@@ -4,10 +4,13 @@ export async function getUserProductsService({
   page = 1,
   limit = 10,
   search = '',
-  categoryId = null,
-  brandId = null,
+  categoryIds = [],
+  brandIds = [],
   minPrice = null,
-  maxPrice = null
+  maxPrice = null,
+  sizeDimensions = [],
+  colors = [],
+  variationIds = []
 } = {}) {
   try {
     // Get products with filters
@@ -15,20 +18,27 @@ export async function getUserProductsService({
       page,
       limit,
       search,
-      categoryId,
-      brandId,
+      categoryIds,
+      brandIds,
       minPrice,
-      maxPrice
+      maxPrice,
+      sizeDimensions,
+      colors,
+      variationIds
     });
 
     // Get total count for pagination
     const totalCount = await models.getProductsCount({
       search,
-      categoryId,
-      brandId,
+      categoryIds,
+      brandIds,
       minPrice,
-      maxPrice
+      maxPrice,
+      sizeDimensions,
+      colors,
+      variationIds
     });
+
 
     // Calculate pagination info
     const totalPages = Math.ceil(totalCount / limit);
@@ -88,6 +98,157 @@ export async function getUserProductsService({
   } catch (error) {
     console.error('Error in getUserProductsService:', error);
     return { error: 'Failed to fetch products', status: 500 };
+  }
+}
+
+// Get product filter values service
+export async function getProductFilterValuesService() {
+  try {
+    const filterValues = await models.getProductFilterValues();
+
+    return {
+      filters: filterValues,
+      status: 200
+    };
+  } catch (error) {
+    console.error('Error in getProductFilterValuesService:', error);
+    return { error: 'Failed to fetch filter values', status: 500 };
+  }
+}
+
+// Get single product by ID for users
+export async function getUserProductByIdService(id) {
+  try {
+    // Get product by ID
+    const product = await models.getProductById(id);
+
+    if (!product) {
+      return { error: 'Product not found', status: 404 };
+    }
+
+    // Check if product is active (status = 1)
+    if (product.status !== 1) {
+      return { error: 'Product not available', status: 404 };
+    }
+
+    // Get product images
+    const images = await models.getProductImages(product.id);
+
+    // Get product variations if any
+    const variations = await models.getProductVariations(product.id);
+
+    // Get related products
+    const relatedProducts = await models.getRelatedProducts(product.id);
+
+    // Process related products to include images
+    const processedRelatedProducts = await Promise.all(relatedProducts.map(async (relatedProduct) => {
+      const relatedImages = await models.getProductImages(relatedProduct.id);
+      return {
+        id: relatedProduct.id,
+        name: relatedProduct.name,
+        sku_code: relatedProduct.sku_code,
+        price: relatedProduct.price,
+        stock: relatedProduct.stock,
+        images: relatedImages.map(img => ({
+          id: img.id,
+          path: img.image_path,
+          sort_order: img.sort_order,
+          is_primary: img.is_primary
+        }))
+      };
+    }));
+
+    // If this is a parent product, get child products
+    let childProducts = [];
+    if (product.product_type === 'parent') {
+      childProducts = await models.getChildProducts(product.id);
+
+      // Process child products to include images
+      childProducts = await Promise.all(childProducts.map(async (childProduct) => {
+        const childImages = await models.getProductImages(childProduct.id);
+        return {
+          id: childProduct.id,
+          name: childProduct.name,
+          sku_code: childProduct.sku_code,
+          price: childProduct.price,
+          stock: childProduct.stock,
+          images: childImages.map(img => ({
+            id: img.id,
+            path: img.image_path,
+            sort_order: img.sort_order,
+            is_primary: img.is_primary
+          }))
+        };
+      }));
+    }
+
+    // If this is a child product, get parent product
+    let parentProduct = null;
+    if (product.product_type === 'child' && product.parent_product_id) {
+      parentProduct = await models.getParentProduct(product.id);
+      if (parentProduct) {
+        const parentImages = await models.getProductImages(parentProduct.id);
+        parentProduct = {
+          id: parentProduct.id,
+          name: parentProduct.name,
+          sku_code: parentProduct.sku_code,
+          images: parentImages.map(img => ({
+            id: img.id,
+            path: img.image_path,
+            sort_order: img.sort_order,
+            is_primary: img.is_primary
+          }))
+        };
+      }
+    }
+
+    // Return processed product data
+    return {
+      product: {
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        price: product.price,
+        selling_price: product.selling_price,
+        discount: product.discount,
+        gst: product.gst,
+        stock: product.stock,
+        status: product.status,
+        sku_code: product.sku_code,
+        hsn_code: product.hsn_code,
+        color: product.color,
+        size_dimension: product.size_dimension,
+        weight_kg: product.weight_kg,
+        length_mm: product.length_mm,
+        width_mm: product.width_mm,
+        height_mm: product.height_mm,
+        unit: product.unit,
+        product_type: product.product_type,
+        category_name: product.category_name,
+        subcategory_name: product.subcategory_name,
+        brand_name: product.brand_name,
+        images: images.map(img => ({
+          id: img.id,
+          path: img.image_path,
+          sort_order: img.sort_order,
+          is_primary: img.is_primary
+        })),
+        variations: variations.map(variation => ({
+          id: variation.id,
+          variation_label: variation.variation_label,
+          variation_value: variation.variation_value,
+          price: variation.price,
+          stock: variation.stock
+        })),
+        relatedProducts: processedRelatedProducts,
+        childProducts: childProducts,
+        parentProduct: parentProduct
+      },
+      status: 200
+    };
+  } catch (error) {
+    console.error('Error in getUserProductByIdService:', error);
+    return { error: 'Failed to fetch product', status: 500 };
   }
 }
 

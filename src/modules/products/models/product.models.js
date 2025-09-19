@@ -1,16 +1,19 @@
 import knex from '../../../config/db.js';
 
 // Get all products with pagination and search
-export async function getAllProducts({ page = 1, limit = 10, search = '', categoryId = null, brandId = null, minPrice = null, maxPrice = null } = {}) {
+export async function getAllProducts({ page = 1, limit = 10, search = '', categoryIds = [], brandIds = [], minPrice = null, maxPrice = null, sizeDimensions = [], colors = [], variationIds = [] } = {}) {
   let query = knex('byt_products')
     .leftJoin('byt_categories as parent_categories', 'byt_products.category_id', 'parent_categories.id')
     .leftJoin('byt_categories as sub_categories', 'byt_products.subcategory_id', 'sub_categories.id')
     .leftJoin('byt_brands', 'byt_products.brand_id', 'byt_brands.id')
+    .leftJoin('byt_variations', 'byt_products.variation_id', 'byt_variations.id')
     .select(
       'byt_products.*',
       'parent_categories.name as category_name',
       'sub_categories.name as subcategory_name',
-      'byt_brands.name as brand_name'
+      'byt_brands.name as brand_name',
+      'byt_variations.label as variation_label',
+      'byt_variations.value as variation_value'
     )
     .where('byt_products.deleted_at', null);
 
@@ -19,14 +22,14 @@ export async function getAllProducts({ page = 1, limit = 10, search = '', catego
     query = query.where('byt_products.name', 'ilike', `%${search}%`);
   }
 
-  // Add category filter
-  if (categoryId) {
-    query = query.where('byt_products.category_id', categoryId);
+  // Add category filters (multiple categories)
+  if (categoryIds && categoryIds.length > 0) {
+    query = query.whereIn('byt_products.category_id', categoryIds);
   }
 
-  // Add brand filter
-  if (brandId) {
-    query = query.where('byt_products.brand_id', brandId);
+  // Add brand filters (multiple brands)
+  if (brandIds && brandIds.length > 0) {
+    query = query.whereIn('byt_products.brand_id', brandIds);
   }
 
   // Add price range filters
@@ -38,6 +41,37 @@ export async function getAllProducts({ page = 1, limit = 10, search = '', catego
     query = query.where('byt_products.price', '<=', maxPrice);
   }
 
+  // Add size dimension filters (multiple size dimensions)
+  if (sizeDimensions && sizeDimensions.length > 0) {
+    query = query.where(function() {
+      sizeDimensions.forEach((size, index) => {
+        if (index === 0) {
+          this.where('byt_products.size_dimension', 'ilike', `%${size}%`);
+        } else {
+          this.orWhere('byt_products.size_dimension', 'ilike', `%${size}%`);
+        }
+      });
+    });
+  }
+
+  // Add color filters (multiple colors)
+  if (colors && colors.length > 0) {
+    query = query.where(function() {
+      colors.forEach((color, index) => {
+        if (index === 0) {
+          this.where('byt_products.color', 'ilike', `%${color}%`);
+        } else {
+          this.orWhere('byt_products.color', 'ilike', `%${color}%`);
+        }
+      });
+    });
+  }
+
+  // Add variation filters (multiple variations)
+  if (variationIds && variationIds.length > 0) {
+    query = query.whereIn('byt_products.variation_id', variationIds);
+  }
+
   // Add ordering - ensure consistent order for pagination
   query = query.orderBy('byt_products.created_at', 'desc').orderBy('byt_products.id', 'desc');
 
@@ -46,6 +80,86 @@ export async function getAllProducts({ page = 1, limit = 10, search = '', catego
   query = query.limit(limit).offset(offset);
 
   return query;
+}
+
+// Get filter values for products
+export async function getProductFilterValues() {
+  try {
+    // Get distinct categories
+    const categories = await knex('byt_products')
+      .leftJoin('byt_categories', 'byt_products.category_id', 'byt_categories.id')
+      .select('byt_categories.id', 'byt_categories.name')
+      .where('byt_products.deleted_at', null)
+      .where('byt_products.status', 1)
+      .where('byt_categories.is_active', true)
+      .distinct()
+      .orderBy('byt_categories.name');
+
+    // Get distinct brands
+    const brands = await knex('byt_products')
+      .leftJoin('byt_brands', 'byt_products.brand_id', 'byt_brands.id')
+      .select('byt_brands.id', 'byt_brands.name')
+      .where('byt_products.deleted_at', null)
+      .where('byt_products.status', 1)
+      .where('byt_brands.is_active', true)
+      .distinct()
+      .orderBy('byt_brands.name');
+
+    // Get distinct colors
+    const colors = await knex('byt_products')
+      .select('color')
+      .where('deleted_at', null)
+      .where('status', 1)
+      .whereNotNull('color')
+      .where('color', '!=', '')
+      .distinct()
+      .orderBy('color');
+
+    // Get distinct size dimensions
+    const sizeDimensions = await knex('byt_products')
+      .select('size_dimension')
+      .where('deleted_at', null)
+      .where('status', 1)
+      .whereNotNull('size_dimension')
+      .where('size_dimension', '!=', '')
+      .distinct()
+      .orderBy('size_dimension');
+
+    // Get distinct variations
+    const variations = await knex('byt_products')
+      .leftJoin('byt_variations', 'byt_products.variation_id', 'byt_variations.id')
+      .select('byt_variations.id', 'byt_variations.label', 'byt_variations.value')
+      .where('byt_products.deleted_at', null)
+      .where('byt_products.status', 1)
+      .whereNotNull('byt_variations.id')
+      .distinct()
+      .orderBy('byt_variations.label');
+
+    // Get price range
+    const priceRange = await knex('byt_products')
+      .select(
+        knex.raw('MIN(price) as min_price'),
+        knex.raw('MAX(price) as max_price')
+      )
+      .where('deleted_at', null)
+      .where('status', 1)
+      .first();
+
+    return {
+      categories: categories.filter(cat => cat.id && cat.name),
+      brands: brands.filter(brand => brand.id && brand.name),
+      colors: colors.map(c => c.color).filter(color => color),
+      sizeDimensions: sizeDimensions.map(s => s.size_dimension).filter(size => size),
+      variations: variations.filter(v => v.id && v.label),
+      priceRange: {
+        min: priceRange?.min_price || 0,
+        max: priceRange?.max_price || 0
+      }
+    };
+  } catch (error) {
+    console.error('Error in getProductFilterValues:', error);
+    throw error;
+  }
 }
 
 // Global search across products, categories, and brands
@@ -65,11 +179,14 @@ export async function getGlobalSearch({ search = '', limit = 10 } = {}) {
     .leftJoin('byt_categories as parent_categories', 'byt_products.category_id', 'parent_categories.id')
     .leftJoin('byt_categories as sub_categories', 'byt_products.subcategory_id', 'sub_categories.id')
     .leftJoin('byt_brands', 'byt_products.brand_id', 'byt_brands.id')
+    .leftJoin('byt_variations', 'byt_products.variation_id', 'byt_variations.id')
     .select(
       'byt_products.*',
       'parent_categories.name as category_name',
       'sub_categories.name as subcategory_name',
-      'byt_brands.name as brand_name'
+      'byt_brands.name as brand_name',
+      'byt_variations.label as variation_label',
+      'byt_variations.value as variation_value'
     )
     .where('byt_products.deleted_at', null)
     .where('byt_products.status', 1)
@@ -101,7 +218,7 @@ export async function getGlobalSearch({ search = '', limit = 10 } = {}) {
 }
 
 // Get total count of products with filters
-export async function getProductsCount({ search = '', categoryId = null, brandId = null } = {}) {
+export async function getProductsCount({ search = '', categoryIds = [], brandIds = [], minPrice = null, maxPrice = null, sizeDimensions = [], colors = [], variationIds = [] } = {}) {
   let query = knex('byt_products')
     .where('byt_products.deleted_at', null)
     .count('* as count');
@@ -111,31 +228,74 @@ export async function getProductsCount({ search = '', categoryId = null, brandId
     query = query.where('byt_products.name', 'ilike', `%${search}%`);
   }
 
-  // Add category filter
-  if (categoryId) {
-    query = query.where('byt_products.category_id', categoryId);
+  // Add category filters (multiple categories)
+  if (categoryIds && categoryIds.length > 0) {
+    query = query.whereIn('byt_products.category_id', categoryIds);
   }
 
-  // Add brand filter
-  if (brandId) {
-    query = query.where('byt_products.brand_id', brandId);
+  // Add brand filters (multiple brands)
+  if (brandIds && brandIds.length > 0) {
+    query = query.whereIn('byt_products.brand_id', brandIds);
+  }
+
+  // Add price range filters
+  if (minPrice !== null) {
+    query = query.where('byt_products.price', '>=', minPrice);
+  }
+
+  if (maxPrice !== null) {
+    query = query.where('byt_products.price', '<=', maxPrice);
+  }
+
+  // Add size dimension filters (multiple size dimensions)
+  if (sizeDimensions && sizeDimensions.length > 0) {
+    query = query.where(function() {
+      sizeDimensions.forEach((size, index) => {
+        if (index === 0) {
+          this.where('byt_products.size_dimension', 'ilike', `%${size}%`);
+        } else {
+          this.orWhere('byt_products.size_dimension', 'ilike', `%${size}%`);
+        }
+      });
+    });
+  }
+
+  // Add color filters (multiple colors)
+  if (colors && colors.length > 0) {
+    query = query.where(function() {
+      colors.forEach((color, index) => {
+        if (index === 0) {
+          this.where('byt_products.color', 'ilike', `%${color}%`);
+        } else {
+          this.orWhere('byt_products.color', 'ilike', `%${color}%`);
+        }
+      });
+    });
+  }
+
+  // Add variation filters (multiple variations)
+  if (variationIds && variationIds.length > 0) {
+    query = query.whereIn('byt_products.variation_id', variationIds);
   }
 
   const result = await query.first();
   return parseInt(result.count);
 }
 
-// Get product by ID with related data
+  // Get product by ID with related data
 export async function getProductById(id) {
   const product = await knex('byt_products')
     .leftJoin('byt_categories as parent_categories', 'byt_products.category_id', 'parent_categories.id')
     .leftJoin('byt_categories as sub_categories', 'byt_products.subcategory_id', 'sub_categories.id')
     .leftJoin('byt_brands', 'byt_products.brand_id', 'byt_brands.id')
+    .leftJoin('byt_variations', 'byt_products.variation_id', 'byt_variations.id')
     .select(
       'byt_products.*',
       'parent_categories.name as category_name',
       'sub_categories.name as subcategory_name',
-      'byt_brands.name as brand_name'
+      'byt_brands.name as brand_name',
+      'byt_variations.label as variation_label',
+      'byt_variations.value as variation_value'
     )
     .where('byt_products.id', id)
     .where('byt_products.deleted_at', null)
@@ -186,12 +346,16 @@ export async function getProductById(id) {
       .first();
   }
 
+  // Get related products
+  const relatedProducts = await getRelatedProducts(id);
+
   return {
     ...product,
     images,
     variations,
     childProducts: childProducts || [],
-    parentProduct: parentProduct || null
+    parentProduct: parentProduct || null,
+    relatedProducts: relatedProducts || []
   };
 }
 
@@ -310,7 +474,7 @@ export async function getProductVariations(productId) {
 export async function addChildProducts(parentProductId, childProductIds) {
   // First, remove all existing child product relationships for this parent
   await knex('byt_product_parent_child').where('parent_product_id', parentProductId).del();
-  
+
   // Then add the new child product relationships
   if (childProductIds && childProductIds.length > 0) {
     const relationships = childProductIds.map(childId => ({
@@ -319,7 +483,56 @@ export async function addChildProducts(parentProductId, childProductIds) {
     }));
     return knex('byt_product_parent_child').insert(relationships);
   }
-  
+
+  return [];
+}
+
+// Add related products to a product
+export async function addRelatedProducts(productId, relatedProductIds) {
+  // First, remove all existing related product relationships for this product
+  await knex('byt_product_related').where('product_id', productId).del();
+
+  // Then add the new related product relationships
+  if (relatedProductIds && relatedProductIds.length > 0) {
+    const relationships = relatedProductIds.map(relatedId => ({
+      product_id: productId,
+      related_product_id: relatedId
+    }));
+    return knex('byt_product_related').insert(relationships);
+  }
+
+  return [];
+}
+
+// Get all related products for a product
+export async function getRelatedProducts(productId) {
+  return knex('byt_product_related as pr')
+    .leftJoin('byt_products as related', 'pr.related_product_id', 'related.id')
+    .select(
+      'related.id',
+      'related.name',
+      'related.sku_code',
+      'related.price',
+      'related.stock'
+    )
+    .where('pr.product_id', productId)
+    .where('related.deleted_at', null);
+}
+
+// Update related products for a product
+export async function updateRelatedProducts(productId, relatedProductIds) {
+  // Remove existing related products
+  await knex('byt_product_related').where('product_id', productId).del();
+
+  // Add new related products
+  if (relatedProductIds && relatedProductIds.length > 0) {
+    const relationships = relatedProductIds.map(relatedId => ({
+      product_id: productId,
+      related_product_id: relatedId
+    }));
+    return knex('byt_product_related').insert(relationships);
+  }
+
   return [];
 }
 
@@ -360,11 +573,14 @@ export async function getNewArrivalsProducts({ categoryIds = [], limit = 4 } = {
     .leftJoin('byt_categories as parent_categories', 'byt_products.category_id', 'parent_categories.id')
     .leftJoin('byt_categories as sub_categories', 'byt_products.subcategory_id', 'sub_categories.id')
     .leftJoin('byt_brands', 'byt_products.brand_id', 'byt_brands.id')
+    .leftJoin('byt_variations', 'byt_products.variation_id', 'byt_variations.id')
     .select(
       'byt_products.*',
       'parent_categories.name as category_name',
       'sub_categories.name as subcategory_name',
-      'byt_brands.name as brand_name'
+      'byt_brands.name as brand_name',
+      'byt_variations.label as variation_label',
+      'byt_variations.value as variation_value'
     )
     .where('byt_products.deleted_at', null)
     .where('byt_products.status', 1)

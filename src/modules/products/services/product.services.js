@@ -3,6 +3,7 @@ import knex from '../../../config/db.js';
 import fs from 'fs';
 import path from 'path';
 import * as notificationService from '../../notifications/services/notification.services.js';
+import * as variationServices from '../../variations/services/variation.services.js';
 
 // Get all products with pagination and search
 export async function getAllProductsService({ page = 1, limit = 10, search = '', categoryId = null, brandId = null } = {}) {
@@ -76,8 +77,9 @@ export async function createProductService(productData, images = [], variations 
       productData.product_type = 'simple';
     }
 
-    // Remove child_product_ids and images_to_remove from productData as they're not columns in the table
-    const { child_product_ids, images_to_remove, ...productDataWithoutSpecialFields } = productData;
+    // Remove child_product_ids, images_to_remove, and related_product_ids from productData as they're not columns in the table
+    // Keep variation_id as it's now a column in the products table
+    const { child_product_ids, images_to_remove, related_product_ids, ...productDataWithoutSpecialFields } = productData;
 
     // Create the product
     const product = await models.createProduct(productDataWithoutSpecialFields);
@@ -89,13 +91,44 @@ export async function createProductService(productData, images = [], variations 
 
     // Add variations if provided
     if (variations && variations.length > 0) {
-      await models.addProductVariations(product.id, variations);
+      // variations can be array of strings (labels) or objects with variation_id
+      const variationIds = [];
+      for (const v of variations) {
+        if (typeof v === 'string') {
+          // Check if variation exists by label
+          let existingVariation = await knex('byt_variations')
+            .where('label', v)
+            .first();
+          if (!existingVariation) {
+            // Create new variation with label and default value
+            existingVariation = await variationServices.createVariationService({ label: v, value: 'default' });
+          }
+          variationIds.push(existingVariation.id);
+        } else if (v.variation_id) {
+          // Check if variation exists by ID
+          const existingVariation = await knex('byt_variations')
+            .where('id', v.variation_id)
+            .first();
+          if (!existingVariation) {
+            return { error: `Variation with ID ${v.variation_id} not found`, status: 400 };
+          }
+          variationIds.push(v.variation_id);
+        }
+      }
+      // Add product variations with variation_id only, price and stock can be defaulted or handled separately
+      const variationRecords = variationIds.map(id => ({
+        product_id: product.id,
+        variation_id: id,
+        price: 0,
+        stock: 0
+      }));
+      await knex('byt_product_variations').insert(variationRecords);
     }
 
     // Add child products if this is a parent product
     if (productData.product_type === 'parent' && childProductIds && childProductIds.length > 0) {
       await models.addChildProducts(product.id, childProductIds);
-      
+
       // Update child products to set their parent_product_id
       await knex('byt_products')
         .whereIn('id', childProductIds)
@@ -105,7 +138,7 @@ export async function createProductService(productData, images = [], variations 
           updated_at: knex.fn.now()
         });
     }
-    
+
     // If this is a child product with a parent_product_id, add the relationship to the junction table
     if (productData.product_type === 'child' && productData.parent_product_id) {
       // Check if the relationship already exists
@@ -132,6 +165,11 @@ export async function createProductService(productData, images = [], variations 
           parent_product_id: productData.parent_product_id,
           updated_at: knex.fn.now()
         });
+    }
+
+    // Add related products if provided
+    if (productData.related_product_ids && productData.related_product_ids.length > 0) {
+      await models.addRelatedProducts(product.id, productData.related_product_ids);
     }
 
     // Create notification for new product (queue for cronjob processing)
@@ -191,8 +229,9 @@ export async function updateProductService(id, productData, images = null, varia
       productData.parent_product_id = null;
     }
 
-    // Remove child_product_ids and images_to_remove from productData as they're not columns in the table
-    const { child_product_ids, images_to_remove, ...productDataWithoutSpecialFields } = productData;
+    // Remove child_product_ids, images_to_remove, and related_product_ids from productData as they're not columns in the table
+    // Keep variation_id as it's now a column in the products table
+    const { child_product_ids, images_to_remove, related_product_ids, ...productDataWithoutSpecialFields } = productData;
 
     // Update the product
     const product = await models.updateProduct(id, productDataWithoutSpecialFields);
@@ -204,7 +243,38 @@ export async function updateProductService(id, productData, images = null, varia
 
     // Update variations if provided
     if (variations !== null) {
-      await models.updateProductVariations(id, variations);
+      if (variations.length > 0) {
+        // variations can be array of strings (labels) or objects with variation_id
+        const variationIds = [];
+        for (const v of variations) {
+          if (typeof v === 'string') {
+            // Check if variation exists by label
+            let existingVariation = await knex('byt_variations')
+              .where('label', v)
+              .first();
+            if (!existingVariation) {
+              // Create new variation with label and default value
+              existingVariation = await variationServices.createVariationService({ label: v, value: 'default' });
+            }
+            variationIds.push(existingVariation.id);
+          } else if (v.variation_id) {
+            variationIds.push(v.variation_id);
+          }
+        }
+        // First delete existing variations for this product
+        await knex('byt_product_variations').where('product_id', id).del();
+        // Then add new variations
+        const variationRecords = variationIds.map(variationId => ({
+          product_id: id,
+          variation_id: variationId,
+          price: 0,
+          stock: 0
+        }));
+        await knex('byt_product_variations').insert(variationRecords);
+      } else {
+        // If empty array, remove all variations
+        await knex('byt_product_variations').where('product_id', id).del();
+      }
     }
     
     // Delete images marked for removal
@@ -249,7 +319,7 @@ export async function updateProductService(id, productData, images = null, varia
           child_product_id: id
         })
         .first();
-      
+
       // If the relationship doesn't exist, create it
       if (!existingRelationship) {
         await knex('byt_product_parent_child').insert({
@@ -258,7 +328,12 @@ export async function updateProductService(id, productData, images = null, varia
         });
       }
     }
-    
+
+    // Update related products if provided
+    if (productData.related_product_ids !== undefined) {
+      await models.updateRelatedProducts(id, productData.related_product_ids);
+    }
+
     // Return the complete product with images and variations
     return await getProductByIdService(id);
   } catch (error) {
