@@ -173,11 +173,73 @@ export async function createProduct(req, res) {
   }
 }
 
+// Data sanitization utility function
+function sanitizeProductData(data) {
+  const sanitized = { ...data };
+
+  // Convert "undefined" strings to null for optional integer fields
+  const integerFields = [
+    'category_id', 'brand_id', 'variation_id', 'parent_product_id',
+    'stock', 'min_order_qty', 'weight_kg'
+  ];
+
+  integerFields.forEach(field => {
+    if (sanitized[field] === 'undefined' || sanitized[field] === undefined) {
+      sanitized[field] = null;
+    } else if (sanitized[field] !== null && sanitized[field] !== '') {
+      // Convert to integer if it's a valid number
+      const numValue = parseInt(sanitized[field]);
+      sanitized[field] = isNaN(numValue) ? null : numValue;
+    }
+  });
+
+  // Convert "undefined" strings to null for optional float fields
+  const floatFields = ['selling_price', 'price', 'gst', 'discount'];
+  floatFields.forEach(field => {
+    if (sanitized[field] === 'undefined' || sanitized[field] === undefined) {
+      sanitized[field] = null;
+    } else if (sanitized[field] !== null && sanitized[field] !== '') {
+      // Convert to float if it's a valid number
+      const numValue = parseFloat(sanitized[field]);
+      sanitized[field] = isNaN(numValue) ? null : numValue;
+    }
+  });
+
+  // Convert "undefined" strings to empty arrays for optional array fields
+  const arrayFields = ['images_to_remove', 'child_product_ids', 'related_product_ids'];
+  arrayFields.forEach(field => {
+    if (sanitized[field] === 'undefined') {
+      sanitized[field] = [];
+    } else if (sanitized[field] === undefined) {
+      sanitized[field] = null;
+    }
+  });
+
+  // Handle variations field
+  if (sanitized.variations === 'undefined') {
+    sanitized.variations = [];
+  }
+
+  // Handle delivery_flag conversion
+  if (sanitized.delivery_flag === 'true') {
+    sanitized.delivery_flag = true;
+  } else if (sanitized.delivery_flag === 'false') {
+    sanitized.delivery_flag = false;
+  } else if (sanitized.delivery_flag === 'undefined' || sanitized.delivery_flag === undefined) {
+    sanitized.delivery_flag = null;
+  }
+
+  return sanitized;
+}
+
 // Update product by ID
 export async function updateProduct(req, res) {
   try {
     const { id } = req.params;
-    const productData = req.body;
+    let productData = req.body;
+
+    // Sanitize the input data to handle "undefined" strings
+    productData = sanitizeProductData(productData);
     
     // Extract images to remove if provided
     let imagesToRemove = null;
