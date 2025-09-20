@@ -36,6 +36,7 @@ import userGeneralSettingsRoutes from './src/modules/general-settings/routes/use
 import notificationRoutes from './src/modules/notifications/routes/notification.routes.js';
 import userNotificationRoutes from './src/modules/notifications/routes/userNotification.routes.js';
 import userWishlistRoutes from './src/modules/wishlist/routes/userWishlist.routes.js';
+import reportsRoutes from './src/modules/reports/routes/reports.routes.js'
 
 const app = express();
 app.use(cors({
@@ -142,6 +143,7 @@ app.use('/api/v1/user/general-settings', userGeneralSettingsRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/user/notifications', userNotificationRoutes);
 app.use('/api/v1/user/wishlist', userWishlistRoutes);
+app.use('/api/v1/reports', reportsRoutes);
 
 app.post('/', (req, res) => res.send('BuyTown API Microservice'));
 
