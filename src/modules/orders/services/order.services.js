@@ -478,7 +478,6 @@ export async function approveOrder(orderId, vehicleId, deliveryDistance, deliver
     if (result > 0) {
       // Get updated order details
       const orderResult = await getOrderById(orderId);
-      console.log('Order approved:', orderResult.order);
       await notificationServices.createOrderApprovalNotification(orderResult.order);
       
       // Send notification for order approval
