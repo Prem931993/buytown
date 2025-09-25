@@ -16,7 +16,7 @@ export async function sendOtp(phone, email, otp) {
     const smsConfig = smsConfigs.find(config => config.provider === 'msg91') || smsConfigs[0]; // Prefer MSG91, fallback to first available
 
     if (!smsConfig) {
-      console.error('[OTP_SEND] ❌ No SMS configuration found');
+      console.error('[OTP_SEND] No SMS configuration found');
       throw new Error('No SMS configuration found');
     }
 
@@ -29,7 +29,7 @@ export async function sendOtp(phone, email, otp) {
         // await sendSms(phone, `Your OTP is: ${otp}`, smsConfig);
         smsSent = true;
       } catch (smsError) {
-        console.error(`[OTP_SEND] ❌ SMS sending failed to ${phone}: ${smsError.message}`);
+        console.error(`[OTP_SEND] SMS sending failed to ${phone}: ${smsError.message}`);
         throw smsError; // Re-throw to fail the entire operation
       }
     }
@@ -40,7 +40,7 @@ export async function sendOtp(phone, email, otp) {
         await sendEmail(email, 'Your OTP Code', `Your OTP is: ${otp}`);
         emailSent = true;
       } catch (emailError) {
-        console.error(`[OTP_SEND] ❌ Email sending failed to ${email}: ${emailError.message}`);
+        console.error(`[OTP_SEND] Email sending failed to ${email}: ${emailError.message}`);
         // Don't throw here - email failure shouldn't stop the process
       }
     }
@@ -54,7 +54,7 @@ export async function sendOtp(phone, email, otp) {
         expires_at: new Date(Date.now() + 5 * 60 * 1000) // 5 minutes expiry
       });
     } catch (dbError) {
-      console.error(`[OTP_SEND] ❌ Failed to store OTP record: ${dbError.message}`);
+      console.error(`[OTP_SEND] Failed to store OTP record: ${dbError.message}`);
       throw dbError; // Re-throw to fail the entire operation
     }
 
@@ -68,7 +68,7 @@ export async function sendOtp(phone, email, otp) {
 
     return { success: true, message: successMessage };
   } catch (error) {
-    console.error(`[OTP_SEND] 💥 OTP sending failed: ${error.message}`);
+    console.error(`[OTP_SEND] OTP sending failed: ${error.message}`);
     return { success: false, error: error.message };
   }
 }
@@ -87,7 +87,7 @@ export async function verifyOtp(phone, otp) {
 
     return { success: true, message: 'OTP verified successfully' };
   } catch (error) {
-    console.error(`[OTP_VERIFY] 💥 OTP verification failed: ${error.message}`);
+    console.error(`[OTP_VERIFY] OTP verification failed: ${error.message}`);
     return { success: false, error: error.message };
   }
 }

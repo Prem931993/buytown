@@ -287,7 +287,6 @@ export const createOrderStatusNotification = async (order, user, status) => {
       reference_type: 'order',
       reference_id: order.id
     };
-    console.log('Creating Order Status Notification:', notification);
 
     await notificationModels.createNotification(notification);
     return { success: true };
