@@ -336,3 +336,24 @@ export async function userResetPassword(req, res) {
   }
   res.status(result.status).json({ statusCode: result.status, message: result.message });
 }
+
+// View user profile controller
+export async function viewUserProfile(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ statusCode: 401, error: 'Unauthorized' });
+    }
+
+    const result = await services.viewUserProfileService(userId);
+
+    if (result.error) {
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+
+    res.status(200).json({ statusCode: 200, user: result.user });
+  } catch (error) {
+    console.error('Error in viewUserProfile controller:', error);
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
