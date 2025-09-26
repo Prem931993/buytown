@@ -739,3 +739,37 @@ export async function agreeTermsAndConditionsService(userId) {
     return { error: 'Failed to agree to terms and conditions.', status: 500 };
   }
 }
+
+// View user profile service
+export async function viewUserProfileService(userId) {
+  try {
+    // Fetch user details
+    const user = await models.findUserById(userId);
+    if (!user) {
+      return { error: 'User not found.', status: 404 };
+    }
+
+    // Return user profile data excluding sensitive fields
+    return {
+      user: {
+        id: user.id,
+        firstname: user.firstname,
+        lastname: user.lastname,
+        email: user.email,
+        phone_no: user.phone_no,
+        address: user.address,
+        gstin: user.gstin,
+        profile_photo: user.profile_photo,
+        role_id: user.role_id,
+        terms_agreed: user.terms_agreed,
+        terms_agreed_at: user.terms_agreed_at,
+        created_at: user.created_at,
+        updated_at: user.updated_at
+      },
+      status: 200
+    };
+  } catch (error) {
+    console.error('Error in viewUserProfileService:', error);
+    return { error: 'Failed to retrieve user profile.', status: 500 };
+  }
+}

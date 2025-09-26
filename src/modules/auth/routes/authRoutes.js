@@ -66,6 +66,7 @@ router.post('/user/agree-terms', verifyUserDualAuth, authController.agreeTermsAn
 
 // Separate API for updating user profile (excluding terms agreement)
 router.put('/user/update-profile', verifyUserDualAuth, authController.updateUserProfile);
+router.get('/user/profile', verifyUserDualAuth, authController.viewUserProfile);
 router.delete('/user', verifyUserDualAuth, deleteUser);
 
 export default router;
