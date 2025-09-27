@@ -102,9 +102,9 @@ export async function getUserProductsService({
 }
 
 // Get product filter values service
-export async function getProductFilterValuesService() {
+export async function getProductFilterValuesService({ categoryIds = [] } = {}) {
   try {
-    const filterValues = await models.getProductFilterValues();
+    const filterValues = await models.getProductFilterValues(categoryIds);
 
     return {
       filters: filterValues,

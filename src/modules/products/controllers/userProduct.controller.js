@@ -60,7 +60,9 @@ export async function getUserProducts(req, res) {
 
 export async function getProductFilterValues(req, res) {
   try {
-    const result = await services.getProductFilterValuesService();
+    const categoryIds = req.query.category_id ? [parseInt(req.query.category_id)].filter(id => !isNaN(id)) : [];
+
+    const result = await services.getProductFilterValuesService({ categoryIds });
 
     if (result.error) {
       return res.status(result.status).json({ statusCode: result.status, error: result.error });
