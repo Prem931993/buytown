@@ -83,67 +83,75 @@ export async function getAllProducts({ page = 1, limit = 10, search = '', catego
 }
 
 // Get filter values for products
-export async function getProductFilterValues() {
+export async function getProductFilterValues(categoryIds = []) {
   try {
+    // Base query conditions
+    const baseConditions = (query) => {
+      query.where('byt_products.deleted_at', null)
+           .where('byt_products.status', 1);
+      if (categoryIds && categoryIds.length > 0) {
+        query.whereIn('byt_products.category_id', categoryIds);
+      }
+    };
+
     // Get distinct categories
-    const categories = await knex('byt_products')
+    let categoriesQuery = knex('byt_products')
       .leftJoin('byt_categories', 'byt_products.category_id', 'byt_categories.id')
       .select('byt_categories.id', 'byt_categories.name')
-      .where('byt_products.deleted_at', null)
-      .where('byt_products.status', 1)
       .where('byt_categories.is_active', true)
       .distinct()
       .orderBy('byt_categories.name');
+    baseConditions(categoriesQuery);
+    const categories = await categoriesQuery;
 
     // Get distinct brands
-    const brands = await knex('byt_products')
+    let brandsQuery = knex('byt_products')
       .leftJoin('byt_brands', 'byt_products.brand_id', 'byt_brands.id')
       .select('byt_brands.id', 'byt_brands.name')
-      .where('byt_products.deleted_at', null)
-      .where('byt_products.status', 1)
       .where('byt_brands.is_active', true)
       .distinct()
       .orderBy('byt_brands.name');
+    baseConditions(brandsQuery);
+    const brands = await brandsQuery;
 
     // Get distinct colors
-    const colors = await knex('byt_products')
+    let colorsQuery = knex('byt_products')
       .select('color')
-      .where('deleted_at', null)
-      .where('status', 1)
       .whereNotNull('color')
       .where('color', '!=', '')
       .distinct()
       .orderBy('color');
+    baseConditions(colorsQuery);
+    const colors = await colorsQuery;
 
     // Get distinct size dimensions
-    const sizeDimensions = await knex('byt_products')
+    let sizeDimensionsQuery = knex('byt_products')
       .select('size_dimension')
-      .where('deleted_at', null)
-      .where('status', 1)
       .whereNotNull('size_dimension')
       .where('size_dimension', '!=', '')
       .distinct()
       .orderBy('size_dimension');
+    baseConditions(sizeDimensionsQuery);
+    const sizeDimensions = await sizeDimensionsQuery;
 
     // Get distinct variations
-    const variations = await knex('byt_products')
+    let variationsQuery = knex('byt_products')
       .leftJoin('byt_variations', 'byt_products.variation_id', 'byt_variations.id')
       .select('byt_variations.id', 'byt_variations.label', 'byt_variations.value')
-      .where('byt_products.deleted_at', null)
-      .where('byt_products.status', 1)
       .whereNotNull('byt_variations.id')
       .distinct()
       .orderBy('byt_variations.label');
+    baseConditions(variationsQuery);
+    const variations = await variationsQuery;
 
     // Get price range
-    const priceRange = await knex('byt_products')
+    let priceRangeQuery = knex('byt_products')
       .select(
         knex.raw('MIN(price) as min_price'),
         knex.raw('MAX(price) as max_price')
-      )
-      .where('deleted_at', null)
-      .where('status', 1)
-      .first();
+      );
+    baseConditions(priceRangeQuery);
+    const priceRange = await priceRangeQuery.first();
 
     return {
       categories: categories.filter(cat => cat.id && cat.name),

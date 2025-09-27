@@ -2,6 +2,7 @@ import knex from '../../../config/db.js';
 import * as cartModels from '../../cart/models/cart.models.js';
 import * as notificationService from '../../notifications/services/notification.services.js';
 import * as orderService from '../../orders/services/order.services.js';
+import * as authModels from '../../auth/models/auth.models.js';
 
 // Simplified delivery distance calculation
 // In production, replace this with actual distance calculation using Google Maps API or similar
@@ -37,7 +38,8 @@ export async function createOrderService(userId, orderData) {
     billing_address,
     payment_method,
     notes,
-    delivery_distance
+    delivery_distance,
+    gstin
   } = orderData;
 
   // Start transaction
@@ -127,6 +129,25 @@ export async function createOrderService(userId, orderData) {
 
     await trx.commit();
 
+    // Update user's address and gstin if provided
+    try {
+      const updateData = {};
+      if (shipping_address) {
+        // Convert shipping_address to string format for user.address
+        const addr = typeof shipping_address === 'string' ? JSON.parse(shipping_address) : shipping_address;
+        updateData.address = `${addr.street || ''}, ${addr.city || ''}, ${addr.state || ''}, ${addr.zip_code || ''}`.trim();
+      }
+      if (gstin) {
+        updateData.gstin = gstin;
+      }
+      if (Object.keys(updateData).length > 0) {
+        await knex('byt_users').where('id', userId).update(updateData);
+      }
+    } catch (updateError) {
+      console.warn('Error updating user profile:', updateError);
+      // Don't fail the order creation if profile update fails
+    }
+
     // Get user information for notifications
     const user = await knex('byt_users').where('id', userId).first();
 
@@ -180,5 +201,54 @@ export async function getUserOrdersService(userId, options) {
     };
   } catch (error) {
     return { error: error.message, status: 500 };
+  }
+}
+
+export async function getCheckoutInfoService(userId) {
+  try {
+    // Get user details
+    const user = await authModels.findUserById(userId);
+    if (!user) {
+      return { error: 'User not found', status: 404 };
+    }
+
+    // Parse address if it's a string (assuming comma-separated: street, city, state, pincode)
+    let addressParts = {};
+    if (user.address) {
+      const parts = user.address.split(',').map(part => part.trim());
+      addressParts = {
+        street: parts[0] || '',
+        city: parts[1] || '',
+        state: parts[2] || '',
+        zip_code: parts[3] || '',
+        country: 'IN' // Default to India
+      };
+    }
+
+    // Shipping info
+    const shipping = {
+      firstName: user.firstname || '',
+      lastName: user.lastname || '',
+      street: addressParts.street || '',
+      city: addressParts.city || '',
+      state: addressParts.state || '',
+      zip_code: addressParts.zip_code || '',
+      country: addressParts.country || 'IN'
+    };
+
+    // Billing info (same as shipping but with gstin)
+    const billing = {
+      ...shipping,
+      gstin: user.gstin || ''
+    };
+
+    return {
+      shipping,
+      billing,
+      status: 200
+    };
+  } catch (error) {
+    console.error('Error in getCheckoutInfoService:', error);
+    return { error: 'Failed to retrieve checkout information', status: 500 };
   }
 }

@@ -4,6 +4,9 @@ import verifyUserDualAuth from '../../auth/middleware/userDualAuthMiddleware.js'
 
 const router = Router();
 
+// Get user's checkout information
+router.get('/', verifyUserDualAuth, userCheckoutController.getCheckoutInfo);
+
 // Create new order (checkout)
 router.post('/', verifyUserDualAuth, userCheckoutController.createOrder);
 

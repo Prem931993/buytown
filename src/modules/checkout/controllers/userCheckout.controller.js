@@ -1,5 +1,26 @@
 import * as services from '../services/userCheckout.services.js';
 
+export async function getCheckoutInfo(req, res) {
+  try {
+    const userId = req.user.id;
+
+    const result = await services.getCheckoutInfoService(userId);
+
+    if (result.error) {
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+
+    res.status(result.status).json({
+      statusCode: result.status,
+      shipping: result.shipping,
+      billing: result.billing
+    });
+  } catch (error) {
+    console.error('Error in getCheckoutInfo:', error);
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
+
 export async function createOrder(req, res) {
   try {
     const userId = req.user.id;
@@ -18,12 +39,19 @@ export async function createOrder(req, res) {
       });
     }
 
+    // Extract gstin from billing_address if present
+    let gstin = null;
+    if (billing_address && billing_address.gstin) {
+      gstin = billing_address.gstin;
+    }
+
     const result = await services.createOrderService(userId, {
       shipping_address,
       billing_address: billing_address || shipping_address,
       payment_method,
       notes,
-      delivery_distance
+      delivery_distance,
+      gstin
     });
 
     if (result.error) {
