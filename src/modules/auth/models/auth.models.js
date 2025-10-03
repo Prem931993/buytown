@@ -56,6 +56,30 @@ export const findSessionByToken = (refresh_token, user_id) =>
 export const deleteSessionById = (id) =>
   knex('byt_user_sessions').where({ id }).del();
 
+export const getActiveSessionsByUserId = (user_id) =>
+  knex('byt_user_sessions')
+    .where({ user_id })
+    .andWhere('expires_at', '>', knex.fn.now())
+    .orderBy('created_at', 'desc');
+
+export const deleteAllSessionsByUserId = (user_id) =>
+  knex('byt_user_sessions').where({ user_id }).del();
+
+export const deleteSessionByUserIdAndSessionId = (user_id, session_id) =>
+  knex('byt_user_sessions')
+    .where({ user_id, id: session_id })
+    .del();
+
+export const updateSessionLastActivity = (session_id) =>
+  knex('byt_user_sessions')
+    .where({ id: session_id })
+    .update({ last_activity: knex.fn.now() });
+
+export const markAllSessionsNotCurrent = (user_id) =>
+  knex('byt_user_sessions')
+    .where({ user_id })
+    .update({ is_current_session: false });
+
 export const insertPasswordReset = (resetData) =>
   knex('byt_password_resets').insert(resetData);
 

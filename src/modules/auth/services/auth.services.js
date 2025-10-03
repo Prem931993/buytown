@@ -163,12 +163,29 @@ export async function loginService(data, apiRole) {
     );
   }
 
+  // Extract device info from data if available
+  const deviceInfo = {
+    device_name: data.device_name || null,
+    browser: data.browser || null,
+    browser_version: data.browser_version || null,
+    os: data.os || null,
+    os_version: data.os_version || null,
+    device_type: data.device_type || null,
+    location: data.location || null,
+    is_current_session: true,
+    last_activity: knex.fn.now()
+  };
+
+  // Before inserting new session, mark all existing sessions for this user as not current
+  await models.markAllSessionsNotCurrent(user.id);
+
   await models.insertUserSession({
     user_id: user.id,
     refresh_token: refreshToken,
     user_agent,
     ip_address: ip,
-    expires_at: knex.raw(`NOW() + interval '${process.env.REFRESH_TOKEN_EXPIRES_IN}'`)
+    expires_at: knex.raw(`NOW() + interval '${process.env.REFRESH_TOKEN_EXPIRES_IN}'`),
+    ...deviceInfo
   });
 
   const response = {
@@ -308,7 +325,7 @@ export async function generateApiTokenService(client_id, client_secret) {
   const apiToken = helpers.generateToken(
     { client_id: credential.client_id, role: credential.role },
     process.env.JWT_API_SECRET,
-    { expiresIn: '1d' }
+    { expiresIn: '365d' }
   );
   logger.info('API token generated successfully for client_id: ' + client_id);
   return { message: 'API token generated successfully.', apiToken, status: 200 };
@@ -771,5 +788,81 @@ export async function viewUserProfileService(userId) {
   } catch (error) {
     console.error('Error in viewUserProfileService:', error);
     return { error: 'Failed to retrieve user profile.', status: 500 };
+  }
+}
+
+// Get active devices/sessions for a user
+export async function getActiveDevicesService(userId) {
+  try {
+    const sessions = await models.getActiveSessionsByUserId(userId);
+
+    // Format the device information for response
+    const devices = sessions.map(session => ({
+      id: session.id,
+      device_name: session.device_name || 'Unknown Device',
+      browser: session.browser || 'Unknown',
+      browser_version: session.browser_version || '',
+      os: session.os || 'Unknown',
+      os_version: session.os_version || '',
+      device_type: session.device_type || 'desktop',
+      location: session.location || 'Unknown',
+      ip_address: session.ip_address,
+      is_current_session: session.is_current_session || false,
+      last_activity: session.last_activity || session.created_at,
+      created_at: session.created_at
+    }));
+
+    return {
+      devices,
+      total: devices.length,
+      status: 200
+    };
+  } catch (error) {
+    console.error('Error in getActiveDevicesService:', error);
+    return { error: 'Failed to retrieve active devices.', status: 500 };
+  }
+}
+
+// Logout from specific device/session
+export async function logoutFromDeviceService(userId, sessionId) {
+  try {
+    // Verify the session belongs to the user
+    const session = await knex('byt_user_sessions')
+      .where({ id: sessionId, user_id: userId })
+      .first();
+
+    if (!session) {
+      return { error: 'Device session not found.', status: 404 };
+    }
+
+    // Delete the specific session
+    await models.deleteSessionByUserIdAndSessionId(userId, sessionId);
+
+    return {
+      message: 'Successfully logged out from the selected device.',
+      status: 200
+    };
+  } catch (error) {
+    console.error('Error in logoutFromDeviceService:', error);
+    return { error: 'Failed to logout from device.', status: 500 };
+  }
+}
+
+// Logout from all devices except current session
+export async function logoutFromAllDevicesService(userId, currentSessionId) {
+  try {
+    // Delete all sessions for the user except the current one
+    await knex('byt_user_sessions')
+      .where({ user_id: userId })
+      .andWhereNot({ id: currentSessionId })
+      .del();
+
+    return {
+      message: 'Successfully logged out from all other devices.',
+      status: 200
+    };
+  } catch (error) {
+    console.error('Error in logoutFromAllDevicesService:', error);
+    return { error: 'Failed to logout from all devices.', status: 500 };
   }
 }

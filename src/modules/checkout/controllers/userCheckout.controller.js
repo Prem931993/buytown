@@ -96,3 +96,64 @@ export async function getUserOrders(req, res) {
     res.status(500).json({ statusCode: 500, error: 'Internal server error' });
   }
 }
+
+export async function initiatePhonePePayment(req, res) {
+  try {
+    const userId = req.user.id;
+    const { orderId } = req.body;
+
+    if (!orderId) {
+      return res.status(400).json({ statusCode: 400, error: 'Order ID is required' });
+    }
+
+    const paymentResponse = await services.initiatePhonePePayment(userId, orderId);
+
+    if (paymentResponse.error) {
+      return res.status(paymentResponse.status).json({ statusCode: paymentResponse.status, error: paymentResponse.error });
+    }
+
+    res.status(200).json({
+      statusCode: 200,
+      paymentUrl: paymentResponse.paymentUrl,
+      transactionId: paymentResponse.transactionId
+    });
+  } catch (error) {
+    console.error('Error in initiatePhonePePayment:', error);
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
+
+export async function handlePhonePeCallback(req, res) {
+  try {
+    const callbackData = await services.handlePhonePeCallback(req);
+
+    res.status(200).json({ statusCode: 200, message: 'Callback processed', data: callbackData });
+  } catch (error) {
+    console.error('Error in handlePhonePeCallback:', error);
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
+
+export async function getPhonePePaymentStatus(req, res) {
+  try {
+    const { transactionId } = req.params;
+
+    if (!transactionId) {
+      return res.status(400).json({ statusCode: 400, error: 'Transaction ID is required' });
+    }
+
+    const statusResponse = await services.verifyPhonePePayment(transactionId);
+
+    if (statusResponse.error) {
+      return res.status(statusResponse.status).json({ statusCode: statusResponse.status, error: statusResponse.error });
+    }
+
+    res.status(200).json({
+      statusCode: 200,
+      paymentStatus: statusResponse.paymentStatus
+    });
+  } catch (error) {
+    console.error('Error in getPhonePePaymentStatus:', error);
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}

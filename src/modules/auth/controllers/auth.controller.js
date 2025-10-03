@@ -357,3 +357,86 @@ export async function viewUserProfile(req, res) {
     res.status(500).json({ statusCode: 500, error: 'Internal server error' });
   }
 }
+
+// Get active devices/sessions for the authenticated user
+export async function getActiveDevices(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ statusCode: 401, error: 'Unauthorized' });
+    }
+
+    const result = await services.getActiveDevicesService(userId);
+
+    if (result.error) {
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+
+    res.status(200).json({ statusCode: 200, devices: result.devices, total: result.total });
+  } catch (error) {
+    console.error('Error in getActiveDevices controller:', error);
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
+
+// Logout from a specific device/session
+export async function logoutFromDevice(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ statusCode: 401, error: 'Unauthorized' });
+    }
+
+    const { sessionId } = req.params;
+
+    if (!sessionId) {
+      return res.status(400).json({
+        statusCode: 400,
+        error: 'Session ID is required.'
+      });
+    }
+
+    const result = await services.logoutFromDeviceService(userId, sessionId);
+
+    if (result.error) {
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+
+    res.status(200).json({ statusCode: 200, message: result.message });
+  } catch (error) {
+    console.error('Error in logoutFromDevice controller:', error);
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
+
+// Logout from all devices except current session
+export async function logoutFromAllDevices(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ statusCode: 401, error: 'Unauthorized' });
+    }
+
+    // Get current session ID from the request (assuming it's stored in req.sessionId or similar)
+    // For now, we'll need to get it from the token or session
+    const currentSessionId = req.sessionId; // This needs to be set by middleware
+
+    if (!currentSessionId) {
+      return res.status(400).json({
+        statusCode: 400,
+        error: 'Current session ID not found.'
+      });
+    }
+
+    const result = await services.logoutFromAllDevicesService(userId, currentSessionId);
+
+    if (result.error) {
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+
+    res.status(200).json({ statusCode: 200, message: result.message });
+  } catch (error) {
+    console.error('Error in logoutFromAllDevices controller:', error);
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
