@@ -44,19 +44,35 @@ export async function updateDeliveryPersonProfile(req, res) {
       const mime = req.file.mimetype || '';
       const originalName = req.file.originalname || '';
 
-      // Validate that the file is a PDF
-      const isPdfMime = mime === 'application/pdf';
-      const isPdfExtension = originalName.toLowerCase().endsWith('.pdf');
+      // Determine resource type based on file type
+      let resourceType = 'auto'; // Default
 
-      if (!isPdfMime && !isPdfExtension) {
-        return res.status(400).json({
-          success: false,
-          error: 'Only PDF files are allowed for license upload'
-        });
+      // Check for PDF files
+      if (mime === 'application/pdf' || originalName.toLowerCase().endsWith('.pdf')) {
+        resourceType = 'raw';
       }
-
-      // Force resource_type to 'raw' for PDF files
-      const resourceType = 'raw';
+      // Check for image files
+      else if (mime.startsWith('image/')) {
+        resourceType = 'image';
+      }
+      // Check for video files
+      else if (mime.startsWith('video/')) {
+        resourceType = 'video';
+      }
+      // Check for document files (doc, docx, txt, etc.)
+      else if (
+        mime === 'application/msword' ||
+        mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        mime === 'text/plain' ||
+        mime === 'application/rtf' ||
+        originalName.toLowerCase().match(/\.(doc|docx|txt|rtf)$/i)
+      ) {
+        resourceType = 'raw';
+      }
+      // Default to raw for other file types
+      else {
+        resourceType = 'raw';
+      }
 
       let uploadResult;
       if (req.file.buffer) {
