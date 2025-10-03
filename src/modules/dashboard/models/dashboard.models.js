@@ -354,7 +354,8 @@ export async function getDeliveryPersonOrders(deliveryPersonId) {
         'byt_orders.total_amount',
         'byt_orders.status',
         'byt_orders.created_at',
-        'byt_orders.delivery_address',
+        'byt_orders.shipping_address',
+        'byt_orders.billing_address',
         'byt_orders.delivery_vehicle',
         'byt_users.firstname as customer_firstname',
         'byt_users.lastname as customer_lastname',
@@ -377,7 +378,7 @@ export async function getDeliveryPersonOrders(deliveryPersonId) {
           total_amount: item.total_amount,
           status: item.status,
           created_at: item.created_at,
-          delivery_address: item.delivery_address,
+          delivery_address: item.shipping_address,
           delivery_vehicle: item.delivery_vehicle,
           customer: {
             firstname: item.customer_firstname,
