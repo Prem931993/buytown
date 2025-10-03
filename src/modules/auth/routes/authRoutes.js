@@ -69,4 +69,9 @@ router.put('/user/update-profile', verifyUserDualAuth, authController.updateUser
 router.get('/user/profile', verifyUserDualAuth, authController.viewUserProfile);
 router.delete('/user', verifyUserDualAuth, deleteUser);
 
+// New routes for device management
+router.get('/user/devices', verifyUserDualAuth, authController.getActiveDevices);
+router.delete('/user/devices/:sessionId', verifyUserDualAuth, authController.logoutFromDevice);
+router.delete('/user/devices', verifyUserDualAuth, authController.logoutFromAllDevices);
+
 export default router;

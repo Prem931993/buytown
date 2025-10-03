@@ -3,6 +3,7 @@ import * as cartModels from '../../cart/models/cart.models.js';
 import * as notificationService from '../../notifications/services/notification.services.js';
 import * as orderService from '../../orders/services/order.services.js';
 import * as authModels from '../../auth/models/auth.models.js';
+import * as phonepeServices from './phonepe.services.js';
 
 // Simplified delivery distance calculation
 // In production, replace this with actual distance calculation using Google Maps API or similar
@@ -250,5 +251,70 @@ export async function getCheckoutInfoService(userId) {
   } catch (error) {
     console.error('Error in getCheckoutInfoService:', error);
     return { error: 'Failed to retrieve checkout information', status: 500 };
+  }
+}
+
+export async function initiatePhonePePayment(userId, orderId) {
+  try {
+    // Get order details
+    const order = await knex('byt_orders').where({ id: orderId, user_id: userId }).first();
+
+    if (!order) {
+      return { error: 'Order not found', status: 404 };
+    }
+
+    if (order.payment_method !== 'phonepe') {
+      return { error: 'Order payment method is not PhonePe', status: 400 };
+    }
+
+    if (order.payment_status !== 'pending') {
+      return { error: 'Payment already initiated or completed', status: 400 };
+    }
+
+    // Parse shipping address
+    let shippingAddress = {};
+    try {
+      shippingAddress = typeof order.shipping_address === 'string' ? JSON.parse(order.shipping_address) : order.shipping_address;
+    } catch (e) {
+      console.warn('Error parsing shipping address:', e);
+    }
+
+    // Prepare order data for PhonePe
+    const orderData = {
+      ...order,
+      shipping_address: shippingAddress
+    };
+
+    // Initiate payment with PhonePe
+    const paymentResult = await phonepeServices.initiatePayment(orderData);
+
+    return {
+      paymentUrl: paymentResult.paymentUrl,
+      transactionId: paymentResult.transactionId,
+      status: 200
+    };
+  } catch (error) {
+    console.error('Error in initiatePhonePePayment:', error);
+    return { error: error.message, status: 500 };
+  }
+}
+
+export async function handlePhonePeCallback(callbackData) {
+  try {
+    const result = await phonepeServices.handleCallback(callbackData);
+    return { ...result, status: 200 };
+  } catch (error) {
+    console.error('Error in handlePhonePeCallback:', error);
+    return { error: error.message, status: 500 };
+  }
+}
+
+export async function verifyPhonePePayment(transactionId) {
+  try {
+    const result = await phonepeServices.verifyPayment(transactionId);
+    return { ...result, status: 200 };
+  } catch (error) {
+    console.error('Error in verifyPhonePePayment:', error);
+    return { error: error.message, status: 500 };
   }
 }
