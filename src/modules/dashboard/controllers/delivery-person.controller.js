@@ -43,29 +43,32 @@ export async function updateDeliveryPersonProfile(req, res) {
     if (req.file) {
       const mime = req.file.mimetype || '';
       const originalName = req.file.originalname || '';
+      const fileExtension = originalName.split('.').pop()?.toLowerCase();
 
-      // Determine resource type based on file type
+      // Determine resource type based on file extension and mime type
       let resourceType = 'auto'; // Default
 
-      // Check for PDF files
-      if (mime === 'application/pdf' || originalName.toLowerCase().endsWith('.pdf')) {
-        resourceType = 'raw';
-      }
       // Check for image files
-      else if (mime.startsWith('image/')) {
+      if (mime.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(fileExtension)) {
         resourceType = 'image';
       }
       // Check for video files
-      else if (mime.startsWith('video/')) {
+      else if (mime.startsWith('video/') || ['mp4', 'avi', 'mov', 'wmv', 'flv'].includes(fileExtension)) {
         resourceType = 'video';
       }
-      // Check for document files (doc, docx, txt, etc.)
+      // Check for PDF files
+      else if (mime === 'application/pdf' || fileExtension === 'pdf') {
+        resourceType = 'raw';
+      }
+      // Check for document files
       else if (
+        ['doc', 'docx', 'txt', 'rtf', 'xls', 'xlsx', 'ppt', 'pptx'].includes(fileExtension) ||
         mime === 'application/msword' ||
         mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
         mime === 'text/plain' ||
         mime === 'application/rtf' ||
-        originalName.toLowerCase().match(/\.(doc|docx|txt|rtf)$/i)
+        mime.includes('document') ||
+        mime.includes('text')
       ) {
         resourceType = 'raw';
       }
@@ -73,6 +76,8 @@ export async function updateDeliveryPersonProfile(req, res) {
       else {
         resourceType = 'raw';
       }
+
+      console.log(`File upload - Name: ${originalName}, Mime: ${mime}, Extension: ${fileExtension}, ResourceType: ${resourceType}`);
 
       let uploadResult;
       if (req.file.buffer) {
@@ -85,6 +90,7 @@ export async function updateDeliveryPersonProfile(req, res) {
 
       if (uploadResult?.secure_url) {
         profileData.license = uploadResult.secure_url;
+        console.log(`Upload successful - URL: ${uploadResult.secure_url}, ResourceType: ${uploadResult.resource_type}`);
       }
     }
 
