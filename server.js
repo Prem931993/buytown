@@ -28,6 +28,7 @@ import { getUploadMiddleware, uploadToCloudinary } from './src/config/cloudinary
 import configRoutes from './src/modules/config/routes/config.routes.js';
 import orderRoutes from './src/modules/orders/routes/order.routes.js';
 import dashboardRoutes from './src/modules/dashboard/routes/dashboard.routes.js';
+import deliveryPersonRoutes from './src/modules/dashboard/routes/delivery-person.routes.js';
 import vehicleRoutes from './src/modules/vehicles/routes/vehicle.routes.js';
 import deliveryRoutes from './src/modules/vehicles/routes/delivery.routes.js';
 import pageRoutes from './src/modules/pages/routes/page.routes.js';
@@ -134,6 +135,7 @@ app.use('/api/v1/user/checkout', userCheckoutRoutes);
 app.use('/api/v1/config', configRoutes);
 app.use('/api/v1/orders', orderRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
+app.use('/api/v1/dashboard/delivery-person', deliveryPersonRoutes);
 app.use('/api/v1/vehicles', vehicleRoutes);
 app.use('/api/v1/delivery', deliveryRoutes);
 app.use('/api/v1/pages', pageRoutes);
