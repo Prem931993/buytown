@@ -42,9 +42,21 @@ export async function updateDeliveryPersonProfile(req, res) {
     // Handle license file
     if (req.file) {
       const mime = req.file.mimetype || '';
-      let resourceType = 'auto';
-      if (mime.includes('pdf')) resourceType = 'raw';
-      if (mime.includes('video')) resourceType = 'video';
+      const originalName = req.file.originalname || '';
+
+      // Validate that the file is a PDF
+      const isPdfMime = mime === 'application/pdf';
+      const isPdfExtension = originalName.toLowerCase().endsWith('.pdf');
+
+      if (!isPdfMime && !isPdfExtension) {
+        return res.status(400).json({
+          success: false,
+          error: 'Only PDF files are allowed for license upload'
+        });
+      }
+
+      // Force resource_type to 'raw' for PDF files
+      const resourceType = 'raw';
 
       let uploadResult;
       if (req.file.buffer) {
