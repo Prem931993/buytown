@@ -27,53 +27,48 @@ export async function getDeliveryPersonProfile(req, res) {
 
 export async function updateDeliveryPersonProfile(req, res) {
   try {
-    const deliveryPersonId = req.user.id; 
+    const deliveryPersonId = req.user.id; // Get from authenticated user
     let profileData = req.body;
 
-    // Parse vehicles if sent as JSON string
+    // Parse vehicles if it's a JSON string
     if (profileData.vehicles && typeof profileData.vehicles === 'string') {
       try {
         profileData.vehicles = JSON.parse(profileData.vehicles);
-      } catch {
-        return res.status(400).json({ success: false, error: 'Invalid vehicles data format' });
+      } catch (parseError) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid vehicles data format'
+        });
       }
     }
 
-    // Handle license file
+    // Handle file upload for driving license if present
     if (req.file) {
-      const mime = req.file.mimetype || '';
-      let resourceType = 'auto';
-      if (mime.includes('pdf')) resourceType = 'raw';
-      if (mime.includes('video')) resourceType = 'video';
-
-      let uploadResult;
-      if (req.file.buffer) {
-        // Multer memoryStorage
-        uploadResult = await uploadToCloudinary(req.file.buffer, 'delivery-person', resourceType);
-      } else if (req.file.path) {
-        // Multer diskStorage
-        uploadResult = await uploadToCloudinary(req.file.path, 'delivery-person', resourceType);
-      }
-
-      if (uploadResult?.secure_url) {
-        profileData.license = uploadResult.secure_url;
-      }
+      // Upload to Cloudinary with proper resource type for PDF
+      const resourceType = req.file.mimetype === 'application/pdf' ? 'raw' : 'auto';
+      const result = await uploadToCloudinary(req.file.buffer, 'delivery-person', resourceType);
+      profileData.license = result.secure_url;
     }
 
     const result = await services.updateDeliveryPersonProfile(deliveryPersonId, profileData);
 
     if (result.success) {
-      return res.json({
+      res.json({
         success: true,
         data: result.profile,
         message: 'Profile updated successfully'
       });
     } else {
-      return res.status(400).json({ success: false, error: result.error });
+      res.status(400).json({
+        success: false,
+        error: result.error
+      });
     }
   } catch (error) {
-    console.error('Profile update error:', error);
-    return res.status(500).json({ success: false, error: error.message || 'Internal server error' });
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
   }
 }
 
