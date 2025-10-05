@@ -16,4 +16,7 @@ router.delete('/remove', verifyUserDualAuth, userWishlistController.removeWishli
 // Move wishlist item to cart
 router.post('/move-to-cart', verifyUserDualAuth, userWishlistController.moveWishlistItemToCart);
 
+// Toggle wishlist status for a product
+router.post('/:productId/toggle', verifyUserDualAuth, userWishlistController.toggleWishlist);
+
 export default router;

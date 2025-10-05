@@ -30,6 +30,8 @@ export async function getUserProducts(req, res) {
       ? req.body.variation_ids.map(id => parseInt(id)).filter(id => !isNaN(id))
       : (req.body?.variation_id ? [parseInt(req.body.variation_id)] : []);
 
+    const userId = req.user?.id;
+
     const result = await services.getUserProductsService({
       page,
       limit,
@@ -40,7 +42,8 @@ export async function getUserProducts(req, res) {
       maxPrice,
       sizeDimensions,
       colors,
-      variationIds
+      variationIds,
+      userId
     });
 
     if (result.error) {
@@ -84,10 +87,12 @@ export async function getNewArrivalsProducts(req, res) {
       ? req.body.category_ids.map(id => parseInt(id)).filter(id => !isNaN(id))
       : [];
     const limit = parseInt(req.body?.limit) || 4;
+    const userId = req.user?.id;
 
     const result = await services.getNewArrivalsProductsService({
       categoryIds,
-      limit
+      limit,
+      userId
     });
 
     if (result.error) {
@@ -110,10 +115,12 @@ export async function getTopSellingProducts(req, res) {
       ? req.body.category_ids.map(id => parseInt(id)).filter(id => !isNaN(id))
       : [];
     const limit = parseInt(req.body?.limit) || 8;
+    const userId = req.user?.id;
 
     const result = await services.getTopSellingProductsService({
       categoryIds,
-      limit
+      limit,
+      userId
     });
 
     if (result.error) {
@@ -136,10 +143,12 @@ export async function getRandomProducts(req, res) {
       ? req.body.category_ids.map(id => parseInt(id)).filter(id => !isNaN(id))
       : [];
     const limit = parseInt(req.body?.limit) || 10;
+    const userId = req.user?.id;
 
     const result = await services.getRandomProductsService({
       categoryIds,
-      limit
+      limit,
+      userId
     });
 
     if (result.error) {
@@ -160,10 +169,12 @@ export async function getGlobalSearch(req, res) {
   try {
     const search = req.body.search || '';
     const limit = parseInt(req.body.limit) || 10;
+    const userId = req.user?.id;
 
     const result = await services.getGlobalSearchService({
       search,
-      limit
+      limit,
+      userId
     });
 
     if (result.error) {
@@ -186,8 +197,9 @@ export async function getGlobalSearch(req, res) {
 export async function getUserProductById(req, res) {
   try {
     const { id } = req.params;
+    const userId = req.user?.id;
 
-    const result = await services.getUserProductByIdService(id);
+    const result = await services.getUserProductByIdService(id, userId);
 
     if (result.error) {
       return res.status(result.status).json({ statusCode: result.status, error: result.error });

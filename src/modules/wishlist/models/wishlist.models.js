@@ -38,7 +38,17 @@ export async function addToWishlist(userId, wishlistData) {
 }
 
 // Get user's wishlist items
-export async function getUserWishlistItems(userId) {
+export async function getUserWishlistItems(userId, { page = 1, limit = 10 } = {}) {
+  const offset = (page - 1) * limit;
+
+  // Get total count for pagination
+  const totalCount = await knex('byt_wishlist_items as wi')
+    .leftJoin('byt_products as p', 'wi.product_id', 'p.id')
+    .where('wi.user_id', userId)
+    .where('p.deleted_at', null)
+    .count('wi.id as count')
+    .first();
+
   // Get wishlist items with product details
   const wishlistItems = await knex('byt_wishlist_items as wi')
     .leftJoin('byt_products as p', 'wi.product_id', 'p.id')
@@ -67,7 +77,9 @@ export async function getUserWishlistItems(userId) {
     )
     .where('wi.user_id', userId)
     .where('p.deleted_at', null)
-    .orderBy('wi.created_at', 'desc');
+    .orderBy('wi.created_at', 'desc')
+    .limit(limit)
+    .offset(offset);
 
   // Get product images separately
   const productIds = [...new Set(wishlistItems.map(item => item.product_id))];
@@ -92,7 +104,7 @@ export async function getUserWishlistItems(userId) {
   });
 
   // Combine wishlist items with images and format variation data
-  return wishlistItems.map(item => ({
+  const formattedItems = wishlistItems.map(item => ({
     ...item,
     images: imagesByProduct[item.product_id] || [],
     variation: item.variation_id ? {
@@ -103,6 +115,23 @@ export async function getUserWishlistItems(userId) {
       stock: item.variation_stock
     } : null
   }));
+
+  // Calculate pagination info
+  const totalPages = Math.ceil(totalCount.count / limit);
+  const hasNextPage = page < totalPages;
+  const hasPrevPage = page > 1;
+
+  return {
+    items: formattedItems,
+    pagination: {
+      current_page: page,
+      per_page: limit,
+      total_count: totalCount.count,
+      total_pages: totalPages,
+      has_next_page: hasNextPage,
+      has_prev_page: hasPrevPage
+    }
+  };
 }
 
 // Remove wishlist item
@@ -216,4 +245,30 @@ export async function moveWishlistItemToCart(userId, wishlistItemId) {
     .del();
 
   return cartItem;
+}
+
+// Get user's wishlist product IDs
+export async function getUserWishlistProductIds(userId) {
+  const wishlistItems = await knex('byt_wishlist_items')
+    .select('product_id')
+    .where('user_id', userId);
+
+  return wishlistItems.map(item => item.product_id);
+}
+
+// Get product by ID
+export async function getProductById(productId) {
+  return knex('byt_products')
+    .select('id', 'name', 'price', 'selling_price', 'stock', 'status')
+    .where('id', productId)
+    .where('deleted_at', null)
+    .first();
+}
+
+// Get wishlist item by user and product
+export async function getWishlistItemByUserAndProduct(userId, productId) {
+  return knex('byt_wishlist_items')
+    .where('user_id', userId)
+    .where('product_id', productId)
+    .first();
 }

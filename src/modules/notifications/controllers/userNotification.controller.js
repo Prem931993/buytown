@@ -3,19 +3,19 @@ import * as notificationService from '../services/notification.services.js';
 export const getUserNotifications = async (req, res) => {
   try {
     const userId = req.user.id; // Assuming user ID is available from authentication middleware
-    const { is_read, limit, offset } = req.query;
+    const { is_read, page, limit } = req.query;
 
     const filters = {
       is_read: is_read ? is_read === 'true' : undefined,
-      limit: limit ? parseInt(limit) : 50,
-      offset: offset ? parseInt(offset) : 0
+      page: page ? parseInt(page) : 1,
+      limit: limit ? parseInt(limit) : 50
     };
 
-    const notifications = await notificationService.getUserNotifications(userId, filters);
+    const result = await notificationService.getUserNotifications(userId, filters);
 
     res.status(200).json({
       success: true,
-      data: notifications,
+      data: result,
       message: 'User notifications retrieved successfully'
     });
   } catch (error) {
@@ -109,6 +109,54 @@ export const processPendingNotifications = async (req, res) => {
       success: false,
       message: 'Failed to process pending notifications',
       error: error.message
+    });
+  }
+};
+
+// Delete a notification by ID
+export const deleteNotification = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const result = await notificationService.deleteNotification(id, userId);
+
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notification not found or does not belong to user'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Notification deleted successfully'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      message: 'Failed to delete notification'
+    });
+  }
+};
+
+// Mark all notifications as read for a user
+export const markAllNotificationsAsRead = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const result = await notificationService.markAllNotificationsAsRead(userId);
+
+    res.status(200).json({
+      success: true,
+      message: 'All notifications marked as read'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      message: 'Failed to mark all notifications as read'
     });
   }
 };

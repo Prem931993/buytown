@@ -1,4 +1,6 @@
+import knex from '../../../config/db.js';
 import * as models from '../models/product.models.js';
+import * as wishlistModels from '../../wishlist/models/wishlist.models.js';
 
 export async function getUserProductsService({
   page = 1,
@@ -10,7 +12,8 @@ export async function getUserProductsService({
   maxPrice = null,
   sizeDimensions = [],
   colors = [],
-  variationIds = []
+  variationIds = [],
+  userId = null
 } = {}) {
   try {
     // Get products with filters
@@ -39,13 +42,18 @@ export async function getUserProductsService({
       variationIds
     });
 
+    // Get user's wishlist product IDs if userId provided
+    let wishlistProductIds = [];
+    if (userId) {
+      wishlistProductIds = await wishlistModels.getUserWishlistProductIds(userId);
+    }
 
     // Calculate pagination info
     const totalPages = Math.ceil(totalCount / limit);
     const hasNextPage = page < totalPages;
     const hasPrevPage = page > 1;
 
-    // Process products to include images and other details
+    // Process products to include images, wishlist status and other details
     const processedProducts = await Promise.all(products.map(async (product) => {
       // Get product images
       const images = await models.getProductImages(product.id);
@@ -67,6 +75,7 @@ export async function getUserProductsService({
         category_name: product.category_name,
         subcategory_name: product.subcategory_name,
         brand_name: product.brand_name,
+        is_wishlisted: wishlistProductIds.includes(product.id),
         images: images.map(img => ({
           id: img.id,
           path: img.image_path,
@@ -117,7 +126,7 @@ export async function getProductFilterValuesService({ categoryIds = [] } = {}) {
 }
 
 // Get single product by ID for users
-export async function getUserProductByIdService(id) {
+export async function getUserProductByIdService(id, userId = null) {
   try {
     // Get product by ID
     const product = await models.getProductById(id);
@@ -129,6 +138,12 @@ export async function getUserProductByIdService(id) {
     // Check if product is active (status = 1)
     if (product.status !== 1) {
       return { error: 'Product not available', status: 404 };
+    }
+
+    // Get user's wishlist product IDs if userId provided
+    let wishlistProductIds = [];
+    if (userId) {
+      wishlistProductIds = await wishlistModels.getUserWishlistProductIds(userId);
     }
 
     // Get product images
@@ -227,6 +242,7 @@ export async function getUserProductByIdService(id) {
         category_name: product.category_name,
         subcategory_name: product.subcategory_name,
         brand_name: product.brand_name,
+        is_wishlisted: wishlistProductIds.includes(product.id),
         images: images.map(img => ({
           id: img.id,
           path: img.image_path,
@@ -252,11 +268,16 @@ export async function getUserProductByIdService(id) {
   }
 }
 
-// Get new arrivals products service
-export async function getNewArrivalsProductsService({ categoryIds = [], limit = 4 } = {}) {
+export async function getNewArrivalsProductsService({ categoryIds = [], limit = 4, userId = null } = {}) {
   try {
     // Get new arrivals products
     const products = await models.getNewArrivalsProducts({ categoryIds, limit });
+
+    // Get user's wishlist product IDs if userId provided
+    let wishlistProductIds = [];
+    if (userId) {
+      wishlistProductIds = await wishlistModels.getUserWishlistProductIds(userId);
+    }
 
     // Process products to include images and other details
     const processedProducts = await Promise.all(products.map(async (product) => {
@@ -280,6 +301,7 @@ export async function getNewArrivalsProductsService({ categoryIds = [], limit = 
         category_name: product.category_name,
         subcategory_name: product.subcategory_name,
         brand_name: product.brand_name,
+        is_wishlisted: wishlistProductIds.includes(product.id),
         images: images.map(img => ({
           id: img.id,
           path: img.image_path,
@@ -306,11 +328,16 @@ export async function getNewArrivalsProductsService({ categoryIds = [], limit = 
   }
 }
 
-// Get top selling products service
-export async function getTopSellingProductsService({ categoryIds = [], limit = 8 } = {}) {
+export async function getTopSellingProductsService({ categoryIds = [], limit = 8, userId = null } = {}) {
   try {
     // Get top selling products
     const products = await models.getTopSellingProducts({ categoryIds, limit });
+
+    // Get user's wishlist product IDs if userId provided
+    let wishlistProductIds = [];
+    if (userId) {
+      wishlistProductIds = await wishlistModels.getUserWishlistProductIds(userId);
+    }
 
     // Process products to include images and other details
     const processedProducts = await Promise.all(products.map(async (product) => {
@@ -335,6 +362,7 @@ export async function getTopSellingProductsService({ categoryIds = [], limit = 8
         subcategory_name: product.subcategory_name,
         brand_name: product.brand_name,
         total_sold: product.total_sold || 0,
+        is_wishlisted: wishlistProductIds.includes(product.id),
         images: images.map(img => ({
           id: img.id,
           path: img.image_path,
@@ -361,11 +389,16 @@ export async function getTopSellingProductsService({ categoryIds = [], limit = 8
   }
 }
 
-// Get random products service
-export async function getRandomProductsService({ categoryIds = [], limit = 10 } = {}) {
+export async function getRandomProductsService({ categoryIds = [], limit = 10, userId = null } = {}) {
   try {
     // Get random products
     const products = await models.getRandomProducts({ categoryIds, limit });
+
+    // Get user's wishlist product IDs if userId provided
+    let wishlistProductIds = [];
+    if (userId) {
+      wishlistProductIds = await wishlistModels.getUserWishlistProductIds(userId);
+    }
 
     // Process products to include images and other details
     const processedProducts = await Promise.all(products.map(async (product) => {
@@ -384,11 +417,13 @@ export async function getRandomProductsService({ categoryIds = [], limit = 10 } 
         discount: product.discount,
         gst: product.gst,
         stock: product.stock,
+
         status: product.status,
         sku_code: product.sku_code,
         category_name: product.category_name,
         subcategory_name: product.subcategory_name,
         brand_name: product.brand_name,
+        is_wishlisted: wishlistProductIds.includes(product.id),
         images: images.map(img => ({
           id: img.id,
           path: img.image_path,
@@ -415,10 +450,15 @@ export async function getRandomProductsService({ categoryIds = [], limit = 10 } 
   }
 }
 
-// Global search service
-export async function getGlobalSearchService({ search = '', limit = 10 } = {}) {
+export async function getGlobalSearchService({ search = '', limit = 10, userId = null } = {}) {
   try {
     const result = await models.getGlobalSearch({ search, limit });
+
+    // Get user's wishlist product IDs if userId provided
+    let wishlistProductIds = [];
+    if (userId) {
+      wishlistProductIds = await wishlistModels.getUserWishlistProductIds(userId);
+    }
 
     // Process products to include images and variations
     const processedProducts = await Promise.all(result.products.map(async (product) => {
@@ -442,6 +482,7 @@ export async function getGlobalSearchService({ search = '', limit = 10 } = {}) {
         category_name: product.category_name,
         subcategory_name: product.subcategory_name,
         brand_name: product.brand_name,
+        is_wishlisted: wishlistProductIds.includes(product.id),
         images: images.map(img => ({
           id: img.id,
           path: img.image_path,

@@ -142,12 +142,16 @@ export const getUnreadNotificationCount = async (recipient_type, recipient_id) =
 // User-specific notification functions
 export const getUserNotifications = async (userId, filters = {}) => {
   try {
-    const userFilters = {
-      ...filters,
+    const result = await notificationModels.getNotifications({
       recipient_type: 'user',
-      recipient_id: userId
+      recipient_id: userId,
+      ...filters
+    });
+
+    return {
+      notifications: result.notifications,
+      pagination: result.pagination
     };
-    return await notificationModels.getNotifications(userFilters);
   } catch (error) {
     throw new Error(`Error fetching user notifications: ${error.message}`);
   }
@@ -163,20 +167,21 @@ export const getUserUnreadCount = async (userId) => {
 
 export const markUserNotificationAsRead = async (notificationId, userId) => {
   try {
-    // First verify the notification belongs to the user
-    const notification = await notificationModels.getNotifications({
+    // First check if the notification belongs to the user
+    const notifications = await notificationModels.getNotifications({
       recipient_type: 'user',
       recipient_id: userId,
       limit: 1
     });
 
-    if (!notification || notification.length === 0) {
-      throw new Error('Notification not found or does not belong to user');
+    if (!notifications.notifications || notifications.notifications.length === 0) {
+      return null;
     }
 
-    return await notificationModels.markAsRead(notificationId);
+    const notification = await notificationModels.markAsRead(notificationId);
+    return notification;
   } catch (error) {
-    throw new Error(`Error marking user notification as read: ${error.message}`);
+    throw new Error(`Error marking notification as read: ${error.message}`);
   }
 };
 
@@ -298,15 +303,18 @@ export const createOrderStatusNotification = async (order, user, status) => {
 // Pending notification functions
 export const getPendingNotifications = async () => {
   try {
-    return await notificationModels.getPendingNotifications();
+    const pendingNotifications = await notificationModels.getPendingNotifications();
+    return pendingNotifications;
   } catch (error) {
-    throw new Error(`Error getting pending notifications: ${error.message}`);
+    throw new Error(`Error fetching pending notifications: ${error.message}`);
   }
 };
 
+// Process pending notifications
 export const processPendingNotifications = async () => {
   try {
-    return await notificationModels.processPendingNotifications();
+    const result = await notificationModels.processPendingNotifications();
+    return result;
   } catch (error) {
     throw new Error(`Error processing pending notifications: ${error.message}`);
   }
@@ -389,5 +397,35 @@ export const createOrderCancellationNotification = async (order, customer) => {
     return { success: true };
   } catch (error) {
     throw new Error(`Error creating order cancellation notification: ${error.message}`);
+  }
+};
+
+// Delete a notification by ID for a user
+export const deleteNotification = async (notificationId, userId) => {
+  try {
+    const notification = await notificationModels.getNotifications({
+      recipient_type: 'user',
+      recipient_id: userId,
+      limit: 1
+    });
+
+    if (!notification || notification.notifications.length === 0) {
+      return null;
+    }
+
+    await notificationModels.deleteNotification(notificationId, userId);
+    return true;
+  } catch (error) {
+    throw new Error(`Error deleting notification: ${error.message}`);
+  }
+};
+
+// Mark all notifications as read for a user
+export const markAllNotificationsAsRead = async (userId) => {
+  try {
+    await notificationModels.markAllAsRead(userId);
+    return true;
+  } catch (error) {
+    throw new Error(`Error marking all notifications as read: ${error.message}`);
   }
 };

@@ -44,8 +44,10 @@ export async function addToWishlist(req, res) {
 export async function getWishlistItems(req, res) {
   try {
     const userId = req.user.id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
 
-    const result = await services.getWishlistItemsService(userId);
+    const result = await services.getWishlistItemsService(userId, { page, limit });
 
     if (result.error) {
       return res.status(result.status).json({
@@ -56,7 +58,8 @@ export async function getWishlistItems(req, res) {
 
     res.status(result.status).json({
       statusCode: result.status,
-      data: result.wishlistItems
+      data: result.wishlistItems,
+      pagination: result.pagination
     });
   } catch (error) {
     console.error('Error in getWishlistItems:', error);
@@ -137,5 +140,28 @@ export async function moveWishlistItemToCart(req, res) {
       statusCode: 500,
       error: 'Internal server error'
     });
+  }
+}
+
+// Toggle wishlist status for a product
+export async function toggleWishlist(req, res) {
+  try {
+    const { productId } = req.params;
+    const userId = req.user.id;
+
+    const result = await services.toggleWishlistService(userId, parseInt(productId));
+
+    if (result.error) {
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+
+    res.status(result.status).json({
+      statusCode: result.status,
+      message: result.message,
+      is_wishlisted: result.is_wishlisted
+    });
+  } catch (error) {
+    console.error('Error in toggleWishlist:', error);
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
   }
 }

@@ -1,4 +1,3 @@
-
 import knex from '../../../config/db.js';
 
 export const createNotification = async (notificationData) => {
@@ -14,8 +13,27 @@ export const createNotification = async (notificationData) => {
 
 export const getNotifications = async (filters = {}) => {
   try {
-    const { recipient_type, recipient_id, is_read, limit = 50, offset = 0 } = filters;
+    const { recipient_type, recipient_id, is_read, page = 1, limit = 50 } = filters;
+    const offset = (page - 1) * limit;
 
+    // Get total count for pagination
+    let countQuery = knex('byt_notifications');
+
+    if (recipient_type) {
+      countQuery = countQuery.where('recipient_type', recipient_type);
+    }
+
+    if (recipient_id) {
+      countQuery = countQuery.where('recipient_id', recipient_id);
+    }
+
+    if (is_read !== undefined) {
+      countQuery = countQuery.where('is_read', is_read);
+    }
+
+    const totalCount = await countQuery.count('id as count').first();
+
+    // Get notifications with pagination
     let query = knex('byt_notifications')
       .orderBy('created_at', 'desc')
       .limit(limit)
@@ -34,7 +52,23 @@ export const getNotifications = async (filters = {}) => {
     }
 
     const notifications = await query;
-    return notifications;
+
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalCount.count / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
+    return {
+      notifications,
+      pagination: {
+        current_page: page,
+        per_page: limit,
+        total_count: totalCount.count,
+        total_pages: totalPages,
+        has_next_page: hasNextPage,
+        has_prev_page: hasPrevPage
+      }
+    };
   } catch (error) {
     throw new Error(`Error fetching notifications: ${error.message}`);
   }
@@ -172,5 +206,33 @@ export const processPendingNotifications = async () => {
     };
   } catch (error) {
     throw new Error(`Error processing pending notifications: ${error.message}`);
+  }
+};
+
+// Delete a notification by ID
+export const deleteNotification = async (notificationId, userId) => {
+  try {
+    const result = await knex('byt_notifications')
+      .where('id', notificationId)
+      .where('recipient_type', 'user')
+      .where('recipient_id', userId)
+      .del();
+    return result > 0;
+  } catch (error) {
+    throw new Error(`Error deleting notification: ${error.message}`);
+  }
+};
+
+// Mark all notifications as read for a user
+export const markAllAsRead = async (userId) => {
+  try {
+    const result = await knex('byt_notifications')
+      .where('recipient_type', 'user')
+      .where('recipient_id', userId)
+      .where('is_read', false)
+      .update({ is_read: true, updated_at: knex.fn.now() });
+    return result > 0;
+  } catch (error) {
+    throw new Error(`Error marking all notifications as read: ${error.message}`);
   }
 };

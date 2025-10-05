@@ -20,4 +20,10 @@ router.get('/unread-count', userNotificationController.getUserUnreadCount);
 // Mark user notification as read
 router.put('/:id/read', userNotificationController.markUserNotificationAsRead);
 
+// Delete a notification by ID
+router.delete('/:id', userNotificationController.deleteNotification);
+
+// Mark all notifications as read
+router.put('/mark-all-read', userNotificationController.markAllNotificationsAsRead);
+
 export default router;
