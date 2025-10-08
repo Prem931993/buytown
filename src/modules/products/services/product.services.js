@@ -6,10 +6,10 @@ import * as notificationService from '../../notifications/services/notification.
 import * as variationServices from '../../variations/services/variation.services.js';
 
 // Get all products with pagination and search
-export async function getAllProductsService({ page = 1, limit = 10, search = '', categoryId = null, brandId = null } = {}) {
+export async function getAllProductsService({ page = 1, limit = 10, search = '', categoryIds = null, brandId = null } = {}) {
   try {
-    const products = await models.getAllProducts({ page, limit, search, categoryId, brandId });
-    const totalCount = await models.getProductsCount({ search, categoryId, brandId });
+    const products = await models.getAllProducts({ page, limit, search, categoryIds, brandId });
+    const totalCount = await models.getProductsCount({ search, categoryIds, brandId });
     const totalPages = Math.ceil(totalCount / limit);
 
     return {

@@ -35,10 +35,10 @@ export async function getAllProducts(req, res) {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const search = req.query.search || '';
-    const categoryId = req.query.category_id ? parseInt(req.query.category_id) : null;
+    const categoryIds = req.query.category_id ? (Array.isArray(req.query.category_id) ? req.query.category_id.map(id => parseInt(id)) : req.query.category_id.split(',').map(id => parseInt(id.trim()))) : null;
     const brandId = req.query.brand_id ? parseInt(req.query.brand_id) : null;
 
-    const result = await services.getAllProductsService({ page, limit, search, categoryId, brandId });
+    const result = await services.getAllProductsService({ page, limit, search, categoryIds, brandId });
     if (result.error) {
       return res.status(result.status).json({ statusCode: result.status, error: result.error });
     }
