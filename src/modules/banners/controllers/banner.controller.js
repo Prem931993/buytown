@@ -25,13 +25,16 @@ export async function uploadBanners(req, res) {
       return res.status(400).json({ statusCode: 400, error: 'No file metadata provided' });
     }
 
-    // Validate media_type, link_url, link_target in req.body
-    const { mediaType, linkUrl, linkTarget } = req.body;
+    // Validate media_type, link_type, link_id in req.body
+    const { mediaType, linkType, linkId } = req.body;
     if (mediaType && !['image', 'video', 'youtube'].includes(mediaType)) {
       return res.status(400).json({ statusCode: 400, error: 'Invalid media type' });
     }
-    if (linkTarget && !['_blank', '_self'].includes(linkTarget)) {
-      return res.status(400).json({ statusCode: 400, error: 'Invalid link target' });
+    if (linkType && !['external', 'product', 'category', 'brand', 'page'].includes(linkType)) {
+      return res.status(400).json({ statusCode: 400, error: 'Invalid link type' });
+    }
+    if (linkType && linkId && !Number.isInteger(Number(linkId))) {
+      return res.status(400).json({ statusCode: 400, error: 'Invalid link ID' });
     }
 
     const result = await services.uploadBannersService(req.body);
@@ -76,15 +79,15 @@ export async function updateBannerOrder(req, res) {
 export async function deleteBanner(req, res) {
   try {
     const { id } = req.params;
-    
+
     // Get the existing banner to check if there's an image to remove from Cloudinary
     const existingBanner = await services.getBannerByIdService(id);
-    
+
     const result = await services.deleteBannerService(id);
     if (result.error) {
       return res.status(result.status).json({ statusCode: result.status, error: result.error });
     }
-    
+
     // If the deletion was successful and there was an image, remove the image from Cloudinary
     if (existingBanner.banner && existingBanner.banner.file_path) {
       // Check if it's a Cloudinary URL (starts with https://res.cloudinary.com)
@@ -100,8 +103,46 @@ export async function deleteBanner(req, res) {
         }
       }
     }
-    
+
     res.status(result.status).json({ statusCode: result.status, message: result.message });
+  } catch (error) {
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
+
+// Get categories for dropdown
+export async function getCategoriesForDropdown(req, res) {
+  try {
+    const search = req.query.search || '';
+    const limit = parseInt(req.query.limit) || null;
+
+    const result = await services.getCategoriesForDropdownService({ search, limit });
+    if (result.error) {
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+    res.status(result.status).json({
+      statusCode: result.status,
+      categories: result.categories
+    });
+  } catch (error) {
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
+
+// Get products for dropdown
+export async function getProductsForDropdown(req, res) {
+  try {
+    const search = req.query.search || '';
+    const limit = parseInt(req.query.limit) || 50;
+
+    const result = await services.getProductsForDropdownService({ search, limit });
+    if (result.error) {
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+    res.status(result.status).json({
+      statusCode: result.status,
+      products: result.products
+    });
   } catch (error) {
     res.status(500).json({ statusCode: 500, error: 'Internal server error' });
   }

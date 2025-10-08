@@ -11,6 +11,7 @@ router.post('/top-selling-products', verifyUserDualAuth, userProductController.g
 router.post('/random-products', verifyUserDualAuth, userProductController.getRandomProducts);
 router.post('/global-search', verifyUserDualAuth, userProductController.getGlobalSearch);
 router.get('/filters', verifyUserDualAuth, userProductController.getProductFilterValues);
+router.get('/dropdown', verifyUserDualAuth, userProductController.getProductsForDropdown);
 
 // Get single product by ID for users
 router.get('/:id', verifyUserDualAuth, userProductController.getUserProductById);

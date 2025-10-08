@@ -22,7 +22,7 @@ export async function addToCart(userId, cartData) {
 
   // Validate product exists and is active
   const product = await knex('byt_products')
-    .select('id', 'name', 'price', 'selling_price', 'stock', 'status')
+    .select('id', 'name', 'price', 'selling_price', 'stock', 'held_quantity', 'status')
     .where('id', product_id)
     .where('deleted_at', null)
     .where('status', 1) // 1 = active status (smallint)
@@ -32,31 +32,13 @@ export async function addToCart(userId, cartData) {
     throw new Error('Product not found or inactive');
   }
 
-  let price, stock;
-
-  if (variation_id) {
-    // If variation is selected, get variation details
-    const variation = await knex('byt_product_variations')
-      .select('price', 'stock')
-      .where('id', variation_id)
-      .where('product_id', product_id)
-      .first();
-
-    if (!variation) {
-      throw new Error('Variation not found');
-    }
-
-    // Use variation price if available, otherwise use product price
-    price = variation.price || product.selling_price || product.price;
-    stock = variation.stock;
-  } else {
+  let price, availableStock;
     // No variation selected
     price = product.selling_price || product.price;
-    stock = product.stock;
-  }
+    availableStock = product.stock - product.held_quantity;
 
   // Validate stock availability
-  if (stock < quantity) {
+  if (availableStock < quantity) {
     throw new Error('Insufficient stock available');
   }
 
@@ -75,9 +57,15 @@ export async function addToCart(userId, cartData) {
     const newQuantity = existingItem.quantity + quantity;
 
     // Validate stock for new quantity
-    if (stock < newQuantity) {
+    if (availableStock < newQuantity) {
       throw new Error('Insufficient stock for requested quantity');
     }
+
+    // Adjust held_quantity or stock
+    await knex('byt_products')
+      .where('id', product_id)
+      .increment('held_quantity', quantity);
+
 
     return knex('byt_cart_items')
       .where('id', existingItem.id)
@@ -89,6 +77,12 @@ export async function addToCart(userId, cartData) {
       .returning('*');
   } else {
     // Add new item to cart
+    // Adjust held_quantity or stock
+    await knex('byt_products')
+      .where('id', product_id)
+      .increment('held_quantity', quantity);
+
+
     return knex('byt_cart_items')
       .insert({
         cart_id: cart.id,
@@ -183,6 +177,7 @@ export async function updateCartItem(userId, cartItemId, quantity) {
     .select(
       'ci.*',
       'p.stock as product_stock',
+      'p.held_quantity as product_held_quantity',
       'p.price as product_price',
       'p.selling_price as product_selling_price',
       'pv.stock as variation_stock',
@@ -198,9 +193,24 @@ export async function updateCartItem(userId, cartItemId, quantity) {
   }
 
   // Check stock availability
-  const availableStock = cartItem.variation_id ? cartItem.variation_stock : cartItem.product_stock;
+  const availableStock = cartItem.variation_id ? cartItem.variation_stock : (cartItem.product_stock - cartItem.product_held_quantity);
   if (availableStock < quantity) {
     throw new Error('Insufficient stock');
+  }
+
+  // Calculate quantity difference
+  const quantityDifference = quantity - cartItem.quantity;
+
+  // Adjust held_quantity or stock
+  // For products, adjust held_quantity
+  if (quantityDifference > 0) {
+    await knex('byt_products')
+      .where('id', cartItem.product_id)
+      .increment('held_quantity', quantityDifference);
+  } else if (quantityDifference < 0) {
+    await knex('byt_products')
+      .where('id', cartItem.product_id)
+      .decrement('held_quantity', Math.abs(quantityDifference));
   }
 
   // Calculate new price
@@ -221,9 +231,11 @@ export async function updateCartItem(userId, cartItemId, quantity) {
 
 // Remove cart item
 export async function removeCartItem(userId, cartItemId) {
-  // First verify the cart item belongs to the user
+  // First verify the cart item belongs to the user and get details
   const cartItem = await knex('byt_cart_items as ci')
     .leftJoin('byt_carts as c', 'ci.cart_id', 'c.id')
+    .leftJoin('byt_products as p', 'ci.product_id', 'p.id')
+    .select('ci.*', 'p.id as product_id')
     .where('ci.id', cartItemId)
     .where('c.user_id', userId)
     .first();
@@ -231,6 +243,11 @@ export async function removeCartItem(userId, cartItemId) {
   if (!cartItem) {
     throw new Error('Cart item not found');
   }
+
+  // Adjust held_quantity or stock before deleting
+  await knex('byt_products')
+    .where('id', cartItem.product_id)
+    .decrement('held_quantity', cartItem.quantity);
 
   return knex('byt_cart_items')
     .where('id', cartItemId)
@@ -300,6 +317,18 @@ export async function clearUserCart(userId) {
     .first();
 
   if (cart) {
+    // Get all cart items to adjust held_quantity/stock
+    const cartItems = await knex('byt_cart_items')
+      .where('cart_id', cart.id)
+      .select('product_id', 'variation_id', 'quantity');
+
+    // Adjust held_quantity or stock for each item
+    for (const item of cartItems) {
+        await knex('byt_products')
+          .where('id', item.product_id)
+          .decrement('held_quantity', item.quantity);
+    }
+
     // Delete all cart items
     await knex('byt_cart_items')
       .where('cart_id', cart.id)
@@ -354,4 +383,69 @@ export async function markCartAsProcessing(userId) {
 // Mark cart as completed (when order is placed)
 export async function markCartAsCompleted(userId) {
   return updateCartStatus(userId, 'completed');
+}
+
+// Clear cart items without releasing held quantities (used when order is placed)
+export async function clearCartItemsOnly(userId) {
+  // Get user's cart
+  const cart = await knex('byt_carts')
+    .where('user_id', userId)
+    .first();
+
+  if (cart) {
+    // Delete all cart items without adjusting stock/held quantities
+    await knex('byt_cart_items')
+      .where('cart_id', cart.id)
+      .del();
+
+    // Update cart status to completed
+    await knex('byt_carts')
+      .where('id', cart.id)
+      .update({
+        status: 'completed',
+        updated_at: knex.fn.now()
+      });
+  }
+
+  return true;
+}
+
+// Release held quantities when order is placed (only for products, variations already adjusted)
+export async function releaseHeldQuantitiesForOrder(userId) {
+  // Get user's cart
+  const cart = await knex('byt_carts')
+    .where('user_id', userId)
+    .first();
+
+  if (cart) {
+    // Get all cart items to release held_quantity for products
+    const cartItems = await knex('byt_cart_items')
+      .where('cart_id', cart.id)
+      .select('product_id', 'variation_id', 'quantity');
+
+    // Adjust held_quantity for products (decrease since sold)
+    for (const item of cartItems) {
+      if (!item.variation_id) {
+        await knex('byt_products')
+          .where('id', item.product_id)
+          .decrement('held_quantity', item.quantity);
+      }
+      // For variations, stock was already decreased when added to cart, so no change needed
+    }
+
+    // Delete all cart items
+    await knex('byt_cart_items')
+      .where('cart_id', cart.id)
+      .del();
+
+    // Update cart status to completed
+    await knex('byt_carts')
+      .where('id', cart.id)
+      .update({
+        status: 'completed',
+        updated_at: knex.fn.now()
+      });
+  }
+
+  return true;
 }

@@ -11,4 +11,9 @@ router.post('/upload', verifyDualAuth, bannerController.uploadBanners);
 router.put('/order', verifyDualAuth, bannerController.updateBannerOrder);
 router.delete('/:id', verifyDualAuth, bannerController.deleteBanner);
 
+// Dropdown data endpoints
+router.get('/dropdown/categories', verifyDualAuth, bannerController.getCategoriesForDropdown);
+router.get('/dropdown/products', verifyDualAuth, bannerController.getProductsForDropdown);
+
 export default router;
+

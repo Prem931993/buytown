@@ -204,23 +204,8 @@ export async function moveWishlistItemToCart(userId, wishlistItemId) {
   // Determine price and stock
   let price, stock;
 
-  if (wishlistItem.variation_id) {
-    const variation = await knex('byt_product_variations')
-      .select('price', 'stock')
-      .where('id', wishlistItem.variation_id)
-      .where('product_id', wishlistItem.product_id)
-      .first();
-
-    if (!variation) {
-      throw new Error('Variation not found');
-    }
-
-    price = variation.price || wishlistItem.selling_price || wishlistItem.price;
-    stock = variation.stock;
-  } else {
-    price = wishlistItem.selling_price || wishlistItem.price;
-    stock = wishlistItem.stock;
-  }
+  price = wishlistItem.selling_price || wishlistItem.price;
+  stock = wishlistItem.stock;
 
   // Check stock availability
   if (stock < 1) {

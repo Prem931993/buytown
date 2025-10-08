@@ -125,8 +125,9 @@ export async function createOrderService(userId, orderData) {
 
     await trx('byt_order_items').insert(orderItemsData);
 
-    // Clear user's cart
-    await cartModels.clearUserCart(userId);
+    // Keep held quantities until order completion - don't release them yet
+    // Clear cart items but maintain stock holds
+    await cartModels.clearCartItemsOnly(userId);
 
     await trx.commit();
 

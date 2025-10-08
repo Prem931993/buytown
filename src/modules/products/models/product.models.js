@@ -1,14 +1,34 @@
 import knex from '../../../config/db.js';
 
 // Get all products with pagination and search
-export async function getAllProducts({ page = 1, limit = 10, search = '', categoryIds = [], brandIds = [], minPrice = null, maxPrice = null, sizeDimensions = [], colors = [], variationIds = [] } = {}) {
+export async function getAllProducts({ page = 1, limit = 10, search = '', categoryIds = [], brandIds = [], minPrice = null, maxPrice = null, sizeDimensions = [], colors = [], variationIds = [], status} = {}) {
   let query = knex('byt_products')
     .leftJoin('byt_categories as parent_categories', 'byt_products.category_id', 'parent_categories.id')
     .leftJoin('byt_categories as sub_categories', 'byt_products.subcategory_id', 'sub_categories.id')
     .leftJoin('byt_brands', 'byt_products.brand_id', 'byt_brands.id')
     .leftJoin('byt_variations', 'byt_products.variation_id', 'byt_variations.id')
     .select(
-      'byt_products.*',
+      'byt_products.id',
+      'byt_products.name',
+      'byt_products.sku_code',
+      'byt_products.description',
+      'byt_products.price',
+      'byt_products.selling_price',
+      'byt_products.gst',
+      'byt_products.hsn_code',
+      'byt_products.status',
+      'byt_products.category_id',
+      'byt_products.subcategory_id',
+      'byt_products.brand_id',
+      'byt_products.variation_id',
+      'byt_products.product_type',
+      'byt_products.parent_product_id',
+      'byt_products.color',
+      'byt_products.size_dimension',
+      'byt_products.created_at',
+      'byt_products.updated_at',
+      'byt_products.deleted_at',
+      knex.raw('byt_products.stock - COALESCE(byt_products.held_quantity, 0) as stock'),
       'parent_categories.name as category_name',
       'sub_categories.name as subcategory_name',
       'byt_brands.name as brand_name',
@@ -70,6 +90,10 @@ export async function getAllProducts({ page = 1, limit = 10, search = '', catego
   // Add variation filters (multiple variations)
   if (variationIds && variationIds.length > 0) {
     query = query.whereIn('byt_products.variation_id', variationIds);
+  }
+
+  if (status) {
+    query = query.whereIn('byt_products.status', status);
   }
 
   // Add ordering - ensure consistent order for pagination
@@ -189,7 +213,27 @@ export async function getGlobalSearch({ search = '', limit = 10 } = {}) {
     .leftJoin('byt_brands', 'byt_products.brand_id', 'byt_brands.id')
     .leftJoin('byt_variations', 'byt_products.variation_id', 'byt_variations.id')
     .select(
-      'byt_products.*',
+      'byt_products.id',
+      'byt_products.name',
+      'byt_products.sku_code',
+      'byt_products.description',
+      'byt_products.price',
+      'byt_products.selling_price',
+      'byt_products.gst',
+      'byt_products.hsn_code',
+      'byt_products.status',
+      'byt_products.category_id',
+      'byt_products.subcategory_id',
+      'byt_products.brand_id',
+      'byt_products.variation_id',
+      'byt_products.product_type',
+      'byt_products.parent_product_id',
+      'byt_products.color',
+      'byt_products.size_dimension',
+      'byt_products.created_at',
+      'byt_products.updated_at',
+      'byt_products.deleted_at',
+      knex.raw('byt_products.stock - COALESCE(byt_products.held_quantity, 0) as stock'),
       'parent_categories.name as category_name',
       'sub_categories.name as subcategory_name',
       'byt_brands.name as brand_name',
@@ -298,7 +342,27 @@ export async function getProductById(id) {
     .leftJoin('byt_brands', 'byt_products.brand_id', 'byt_brands.id')
     .leftJoin('byt_variations', 'byt_products.variation_id', 'byt_variations.id')
     .select(
-      'byt_products.*',
+      'byt_products.id',
+      'byt_products.name',
+      'byt_products.sku_code',
+      'byt_products.description',
+      'byt_products.price',
+      'byt_products.selling_price',
+      'byt_products.gst',
+      'byt_products.hsn_code',
+      'byt_products.status',
+      'byt_products.category_id',
+      'byt_products.subcategory_id',
+      'byt_products.brand_id',
+      'byt_products.variation_id',
+      'byt_products.product_type',
+      'byt_products.parent_product_id',
+      'byt_products.color',
+      'byt_products.size_dimension',
+      'byt_products.created_at',
+      'byt_products.updated_at',
+      'byt_products.deleted_at',
+      knex.raw('byt_products.stock - COALESCE(byt_products.held_quantity, 0) as stock'),
       'parent_categories.name as category_name',
       'sub_categories.name as subcategory_name',
       'byt_brands.name as brand_name',
@@ -583,7 +647,27 @@ export async function getNewArrivalsProducts({ categoryIds = [], limit = 4 } = {
     .leftJoin('byt_brands', 'byt_products.brand_id', 'byt_brands.id')
     .leftJoin('byt_variations', 'byt_products.variation_id', 'byt_variations.id')
     .select(
-      'byt_products.*',
+      'byt_products.id',
+      'byt_products.name',
+      'byt_products.sku_code',
+      'byt_products.description',
+      'byt_products.price',
+      'byt_products.selling_price',
+      'byt_products.gst',
+      'byt_products.hsn_code',
+      'byt_products.status',
+      'byt_products.category_id',
+      'byt_products.subcategory_id',
+      'byt_products.brand_id',
+      'byt_products.variation_id',
+      'byt_products.product_type',
+      'byt_products.parent_product_id',
+      'byt_products.color',
+      'byt_products.size_dimension',
+      'byt_products.created_at',
+      'byt_products.updated_at',
+      'byt_products.deleted_at',
+      knex.raw('byt_products.stock - COALESCE(byt_products.held_quantity, 0) as stock'),
       'parent_categories.name as category_name',
       'sub_categories.name as subcategory_name',
       'byt_brands.name as brand_name',
@@ -614,10 +698,32 @@ export async function getTopSellingProducts({ categoryIds = [], limit = 8 } = {}
     .leftJoin('byt_categories as sub_categories', 'byt_products.subcategory_id', 'sub_categories.id')
     .leftJoin('byt_brands', 'byt_products.brand_id', 'byt_brands.id')
     .select(
-      'byt_products.*',
+      'byt_products.id',
+      'byt_products.name',
+      'byt_products.sku_code',
+      'byt_products.description',
+      'byt_products.price',
+      'byt_products.selling_price',
+      'byt_products.gst',
+      'byt_products.hsn_code',
+      'byt_products.status',
+      'byt_products.category_id',
+      'byt_products.subcategory_id',
+      'byt_products.brand_id',
+      'byt_products.variation_id',
+      'byt_products.product_type',
+      'byt_products.parent_product_id',
+      'byt_products.color',
+      'byt_products.size_dimension',
+      'byt_products.created_at',
+      'byt_products.updated_at',
+      'byt_products.deleted_at',
+      knex.raw('byt_products.stock - COALESCE(byt_products.held_quantity, 0) as stock'),
       'parent_categories.name as category_name',
       'sub_categories.name as subcategory_name',
-      'byt_brands.name as brand_name'
+      'byt_brands.name as brand_name',
+      'byt_variations.label as variation_label',
+      'byt_variations.value as variation_value'
     )
     .sum('byt_order_items.quantity as total_sold')
     .where('byt_products.deleted_at', null)
@@ -628,7 +734,9 @@ export async function getTopSellingProducts({ categoryIds = [], limit = 8 } = {}
       'byt_products.id',
       'parent_categories.name',
       'sub_categories.name',
-      'byt_brands.name'
+      'byt_brands.name',
+      'byt_variations.label',
+      'byt_variations.value'
     )
     .orderBy('total_sold', 'desc');
 
@@ -656,11 +764,34 @@ export async function getRandomProducts({ categoryIds = [], limit = 10 } = {}) {
     .leftJoin('byt_categories as parent_categories', 'byt_products.category_id', 'parent_categories.id')
     .leftJoin('byt_categories as sub_categories', 'byt_products.subcategory_id', 'sub_categories.id')
     .leftJoin('byt_brands', 'byt_products.brand_id', 'byt_brands.id')
+    .leftJoin('byt_variations', 'byt_products.variation_id', 'byt_variations.id')
     .select(
-      'byt_products.*',
+      'byt_products.id',
+      'byt_products.name',
+      'byt_products.sku_code',
+      'byt_products.description',
+      'byt_products.price',
+      'byt_products.selling_price',
+      'byt_products.gst',
+      'byt_products.hsn_code',
+      'byt_products.status',
+      'byt_products.category_id',
+      'byt_products.subcategory_id',
+      'byt_products.brand_id',
+      'byt_products.variation_id',
+      'byt_products.product_type',
+      'byt_products.parent_product_id',
+      'byt_products.color',
+      'byt_products.size_dimension',
+      'byt_products.created_at',
+      'byt_products.updated_at',
+      'byt_products.deleted_at',
+      knex.raw('byt_products.stock - COALESCE(byt_products.held_quantity, 0) as stock'),
       'parent_categories.name as category_name',
       'sub_categories.name as subcategory_name',
-      'byt_brands.name as brand_name'
+      'byt_brands.name as brand_name',
+      'byt_variations.label as variation_label',
+      'byt_variations.value as variation_value'
     )
     .where('byt_products.deleted_at', null)
     .where('byt_products.status', 1)
@@ -673,6 +804,25 @@ export async function getRandomProducts({ categoryIds = [], limit = 10 } = {}) {
 
   // Add limit
   query = query.limit(limit);
+
+  return query;
+}
+
+// Get products for dropdown (id and name only, with search)
+export async function getProductsForDropdown({ search = '', limit = 50 } = {}) {
+  let query = knex('byt_products')
+    .select('id', 'name')
+    .where('deleted_at', null)
+    .where('status', 1)
+    .whereRaw('stock > COALESCE(held_quantity, 0)');
+
+  // Add search functionality
+  if (search) {
+    query = query.where('name', 'ilike', `%${search}%`);
+  }
+
+  // Add ordering and limit
+  query = query.orderBy('name').limit(limit);
 
   return query;
 }

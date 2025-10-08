@@ -27,7 +27,8 @@ export async function getUserProductsService({
       maxPrice,
       sizeDimensions,
       colors,
-      variationIds
+      variationIds,
+      status: [1] // Only active products
     });
 
     // Get total count for pagination
@@ -508,5 +509,20 @@ export async function getGlobalSearchService({ search = '', limit = 10, userId =
   } catch (error) {
     console.error('Error in getGlobalSearchService:', error);
     return { error: 'Failed to perform global search', status: 500 };
+  }
+}
+
+// Get products for dropdown service
+export async function getProductsForDropdownService({ search = '', limit = 50 } = {}) {
+  try {
+    const products = await models.getProductsForDropdown({ search, limit });
+
+    return {
+      products,
+      status: 200
+    };
+  } catch (error) {
+    console.error('Error in getProductsForDropdownService:', error);
+    return { error: 'Failed to fetch products for dropdown', status: 500 };
   }
 }

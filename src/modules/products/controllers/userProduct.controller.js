@@ -193,6 +193,31 @@ export async function getGlobalSearch(req, res) {
   }
 }
 
+// Get products for dropdown
+export async function getProductsForDropdown(req, res) {
+  try {
+    const search = req.query.search || '';
+    const limit = parseInt(req.query.limit) || 50;
+
+    const result = await services.getProductsForDropdownService({
+      search,
+      limit
+    });
+
+    if (result.error) {
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+
+    res.status(result.status).json({
+      statusCode: result.status,
+      products: result.products
+    });
+  } catch (error) {
+    console.error('Error in getProductsForDropdown:', error);
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
+
 // Get single product by ID for users
 export async function getUserProductById(req, res) {
   try {

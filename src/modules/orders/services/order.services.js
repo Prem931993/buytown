@@ -2,6 +2,27 @@ import * as models from '../models/order.models.js';
 import db from '../../../config/db.js';
 import * as notificationServices from '../../notifications/services/notification.services.js';
 
+// Helper function to update product status based on stock availability
+async function updateProductStatus(productId, variationId = null) {
+  try {
+
+      // For products, check actual stock (not available stock)
+      const product = await db('byt_products')
+        .where('id', productId)
+        .select('stock')
+        .first();
+
+      if (product) {
+        // If stock is 0, mark as out of stock (inactive), otherwise active
+        await db('byt_products')
+          .where('id', productId)
+          .update({ status: product.stock > 0 ? 1 : 2 });
+      }
+  } catch (error) {
+    console.error('Error updating product status:', error);
+  }
+}
+
 function getFinancialYear() {
   const today = new Date();
   let year = today.getFullYear();
@@ -506,6 +527,21 @@ export async function approveOrder(orderId, vehicleId, deliveryDistance, deliver
 
 export async function rejectOrder(orderId, rejectionReason, rejectedByUserId = null) {
   try {
+    // Get order items to restore stock before rejecting
+    const orderItems = await db('byt_order_items')
+      .where('order_id', orderId)
+      .select('product_id', 'variation_id', 'quantity');
+
+    // Restore stock for rejected order
+    for (const item of orderItems) {
+        // For products, decrease held_quantity (since stock is released)
+        await db('byt_products')
+          .where('id', item.product_id)
+          .decrement('held_quantity', item.quantity);
+        // Update product status if stock becomes available
+        await updateProductStatus(item.product_id);
+    }
+
     const updateData = {
       status: 'rejected',
       rejection_reason: rejectionReason,
@@ -610,6 +646,22 @@ export async function assignDeliveryPerson(orderId, deliveryPersonId, deliveryDi
 
 export async function markOrderCompleted(orderId) {
   try {
+    // Get order items to reduce stock before marking as completed
+    const orderItems = await db('byt_order_items')
+      .where('order_id', orderId)
+      .select('product_id', 'variation_id', 'quantity');
+
+    // Reduce stock permanently for completed order
+    for (const item of orderItems) {
+        // For products, decrease stock and decrease held_quantity
+        await db('byt_products')
+          .where('id', item.product_id)
+          .decrement('stock', item.quantity)
+          .decrement('held_quantity', item.quantity);
+        // Update product status if stock becomes 0
+        await updateProductStatus(item.product_id);
+    }
+
     const updateData = {
       status: 'completed',
       updated_at: new Date()
@@ -707,6 +759,21 @@ export async function cancelOrderByCustomer(orderId, customerId, cancellationRea
       return { success: false, error: 'Order cannot be cancelled at this stage' };
     }
 
+    // Get order items to restore stock
+    const orderItems = await db('byt_order_items')
+      .where('order_id', orderId)
+      .select('product_id', 'variation_id', 'quantity');
+
+    // Restore stock for cancelled order
+    for (const item of orderItems) {
+        // For products, decrease held_quantity (since stock is released)
+        await db('byt_products')
+          .where('id', item.product_id)
+          .decrement('held_quantity', item.quantity);
+        // Update product status if stock becomes available
+        await updateProductStatus(item.product_id);
+    }
+
     const updateData = {
       status: 'cancelled',
       rejection_reason: cancellationReason,
@@ -755,6 +822,22 @@ export async function completeOrderByDelivery(orderId, deliveryPersonId) {
       return { success: false, error: 'Unauthorized: Order not assigned to this delivery person' };
     }
 
+    // Get order items to reduce stock before marking as completed
+    const orderItems = await db('byt_order_items')
+      .where('order_id', orderId)
+      .select('product_id', 'variation_id', 'quantity');
+
+    // Reduce stock permanently for completed order
+    for (const item of orderItems) {
+      // For products, decrease stock and decrease held_quantity
+      await db('byt_products')
+        .where('id', item.product_id)
+        .decrement('stock', item.quantity)
+        .decrement('held_quantity', item.quantity);
+      // Update product status if stock becomes 0
+      await updateProductStatus(item.product_id);
+    }
+
     // Update order status to completed
     const updatedOrder = await updateOrder(orderId, { status: 'completed', status_updated_by: deliveryPersonId });
 
@@ -796,6 +879,21 @@ export async function rejectOrderByDelivery(orderId, deliveryPersonId, rejection
     }
     if (order.order.deliveryPersonId !== deliveryPersonId) {
       return { success: false, error: 'Unauthorized: Order not assigned to this delivery person' };
+    }
+
+    // Get order items to restore stock before rejecting
+    const orderItems = await db('byt_order_items')
+      .where('order_id', orderId)
+      .select('product_id', 'variation_id', 'quantity');
+
+    // Restore stock for rejected order
+    for (const item of orderItems) {
+        // For products, decrease held_quantity (since stock is released)
+        await db('byt_products')
+          .where('id', item.product_id)
+          .decrement('held_quantity', item.quantity);
+        // Update product status if stock becomes available
+        await updateProductStatus(item.product_id);
     }
 
     // Update order status to rejected with reason

@@ -60,6 +60,41 @@ export async function getNextOrderIndex() {
     .where({ is_active: true })
     .max('order_index as maxOrder')
     .first();
-    
+
   return result.maxOrder ? result.maxOrder + 1 : 0;
+}
+
+// Get categories for dropdown
+export async function getCategoriesForDropdown({ search = '', limit = null } = {}) {
+  let query = knex('byt_categories')
+    .select('id', 'name')
+    .where({ is_active: true });
+
+  if (search) {
+    query = query.where('name', 'ilike', `%${search}%`);
+  }
+
+  query = query.orderBy('name');
+
+  if (limit) {
+    query = query.limit(limit);
+  }
+
+  return query;
+}
+
+// Get products for dropdown
+export async function getProductsForDropdown({ search = '', limit = 50 } = {}) {
+  let query = knex('byt_products')
+    .select('id', 'name', 'sku_code')
+    .where({ status: 1, is_active: true });
+
+  if (search) {
+    query = query.where(function() {
+      this.where('name', 'ilike', `%${search}%`)
+          .orWhere('sku_code', 'ilike', `%${search}%`);
+    });
+  }
+
+  return query.orderBy('name').limit(limit);
 }

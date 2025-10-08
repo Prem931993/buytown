@@ -30,8 +30,20 @@ export const getCategoriesByIds = async (categoryIds) => {
     return [];
   }
 
-  return await db('byt_categories')
-    .whereIn('id', categoryIds)
-    .select('id', 'name', 'description', 'image')
-    .orderBy('name');
+  // Use CASE statement to maintain the order of categoryIds (PostgreSQL compatible)
+  const whenClauses = categoryIds.map((id, index) =>
+    `WHEN id = ${id} THEN ${index}`
+  ).join(' ');
+
+  const idsList = categoryIds.join(',');
+
+  const query = `
+    SELECT id, name, description, image
+    FROM byt_categories
+    WHERE id IN (${idsList})
+    ORDER BY CASE ${whenClauses} END
+  `;
+
+  const result = await db.raw(query);
+  return result.rows || [];
 };

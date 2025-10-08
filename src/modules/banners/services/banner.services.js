@@ -21,8 +21,8 @@ export async function uploadBannersService(metadata) {
       name: metadata.fileName,
       file_path: metadata.filePath, // Use the actual uploaded file path
       media_type: metadata.mediaType || 'image',
-      link_url: metadata.linkUrl || null,
-      link_target: metadata.linkTarget || null
+      link_type: metadata.linkType || null,
+      link_id: metadata.linkId || null
     };
     
     let banner;
@@ -97,6 +97,26 @@ export async function deleteBannerService(id) {
 
     await models.deleteBanner(id);
     return { message: 'Banner deleted successfully', status: 200 };
+  } catch (error) {
+    return { error: error.message, status: 500 };
+  }
+}
+
+// Get categories for dropdown service
+export async function getCategoriesForDropdownService({ search = '', limit = null } = {}) {
+  try {
+    const categories = await models.getCategoriesForDropdown({ search, limit });
+    return { categories, status: 200 };
+  } catch (error) {
+    return { error: error.message, status: 500 };
+  }
+}
+
+// Get products for dropdown service
+export async function getProductsForDropdownService({ search = '', limit = 50 } = {}) {
+  try {
+    const products = await models.getProductsForDropdown({ search, limit });
+    return { products, status: 200 };
   } catch (error) {
     return { error: error.message, status: 500 };
   }
