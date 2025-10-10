@@ -1,6 +1,7 @@
 
 import * as generalSettingsService from '../services/generalSettings.services.js';
 import * as logoService from '../../logos/services/logo.services.js';
+import * as deliveryModel from '../../vehicles/models/delivery.models.js';
 
 export const getSettings = async (req, res) => {
   try {
@@ -37,6 +38,8 @@ export const getSettings = async (req, res) => {
   }
 };
 
+
+
 export const updateSettings = async (req, res) => {
   try {
     const settingsData = req.body;
@@ -58,6 +61,7 @@ export const getGeneralSettingsWithLogos = async (req, res) => {
   try {
     const settings = await generalSettingsService.getSettings();
     const logosResult = await logoService.getAllLogosService();
+    const deliverySettings = await deliveryModel.getDeliverySettings();
 
     const logos = logosResult.logos || [];
 
@@ -95,7 +99,8 @@ export const getGeneralSettingsWithLogos = async (req, res) => {
       data: {
         ...settings,
         selected_categories: selectedCategories,
-        logos
+        logos,
+        deliveryDetails: deliverySettings || { center_point: '', delivery_radius_km: 10 }
       }
     });
   } catch (error) {
