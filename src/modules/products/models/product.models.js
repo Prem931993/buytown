@@ -697,6 +697,7 @@ export async function getTopSellingProducts({ categoryIds = [], limit = 8 } = {}
     .leftJoin('byt_categories as parent_categories', 'byt_products.category_id', 'parent_categories.id')
     .leftJoin('byt_categories as sub_categories', 'byt_products.subcategory_id', 'sub_categories.id')
     .leftJoin('byt_brands', 'byt_products.brand_id', 'byt_brands.id')
+    .leftJoin('byt_variations', 'byt_products.variation_id', 'byt_variations.id')
     .select(
       'byt_products.id',
       'byt_products.name',

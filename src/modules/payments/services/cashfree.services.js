@@ -78,7 +78,10 @@ export async function createCashfreeOrder(orderData) {
       order_amount: parseFloat(order_amount).toFixed(2),
       order_currency,
       customer_details,
-      order_meta,
+      order_meta: {
+        return_url: `https://buytown-production.up.railway.app/api/payment/cashfree/callback?order_id=${order_id}`,
+        notify_url: `https://buytown-production.up.railway.app/api/payment/cashfree/webhook`
+      },
       order_tags
     };
 
