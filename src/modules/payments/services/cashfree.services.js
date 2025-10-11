@@ -16,7 +16,7 @@ async function getCashfreeConfig() {
       APP_ID: config.api_key,
       SECRET_KEY: config.api_secret,
       BASE_URL: (config.is_sandbox ? 'https://sandbox.cashfree.com/pg' : 'https://api.cashfree.com/pg'),
-      VERSION: '2022-09-01',
+      VERSION: '2025-01-01',
       WEBHOOK_SECRET: config.webhook_secret,
       IS_SANDBOX: config.is_sandbox,
       CURRENCY: config.currency || 'INR'
@@ -79,8 +79,9 @@ export async function createCashfreeOrder(orderData) {
       order_currency,
       customer_details,
       order_meta: {
-        return_url: `https://buytown-production.up.railway.app/api/payment/cashfree/callback?order_id=${order_id}`,
-        notify_url: `https://buytown-production.up.railway.app/api/payment/cashfree/webhook`
+        return_url: `https://buytown-production.up.railway.app/api/v1/payments/cashfree/verify/${order_id}`,
+        notify_url: `https://buytown-production.up.railway.app/api/v1/payments/cashfree/webhook`,
+        payment_methods: "cc,dc,upi"
       },
       order_tags
     };
@@ -108,7 +109,7 @@ export async function createCashfreeOrder(orderData) {
       gateway_order_id: cashfreeOrderId,
       amount: order_amount,
       currency: order_currency,
-      status: 'created',
+      status: response.data.order_status || 'created',
       gateway_response: JSON.stringify(response.data),
       created_at: knex.fn.now()
     });
