@@ -1,7 +1,7 @@
 import express from 'express';
 import * as controller from '../controllers/order.controller.js';
 import verifyDualAuth from '../../auth/middleware/dualAuthMiddleware.js';
-import verifyUserAuth from '../../auth/middleware/userDualAuthMiddleware.js';
+import verifyUserDualAuth from '../../auth/middleware/userDualAuthMiddleware.js';
 
 const router = express.Router();
 
@@ -47,9 +47,18 @@ router.post('/:id/generate-confirmation-pdf', verifyDualAuth, controller.generat
 router.get('/:id/invoices', verifyDualAuth, controller.getInvoicesByOrder);
 
 // Delivery personnel complete order
-router.put('/:id/delivery-complete', verifyUserAuth, controller.completeOrderByDelivery);
+router.put('/:id/delivery-complete', verifyUserDualAuth, controller.completeOrderByDelivery);
 
 // Delivery personnel reject order
-router.put('/:id/delivery-reject', verifyUserAuth, controller.rejectOrderByDelivery);
+router.put('/:id/delivery-reject', verifyUserDualAuth, controller.rejectOrderByDelivery);
+
+// User cancel order
+router.put('/:id/cancel', verifyUserDualAuth, controller.cancelOrderByUser);
+
+// User mark order as received
+router.put('/:id/received', verifyUserDualAuth, controller.markOrderReceivedByUser);
+
+// User get order details with items
+router.get('/details/:id', verifyUserDualAuth, controller.getUserOrderById);
 
 export default router;

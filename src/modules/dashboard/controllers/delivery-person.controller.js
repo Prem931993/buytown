@@ -77,8 +77,6 @@ export async function updateDeliveryPersonProfile(req, res) {
         resourceType = 'raw';
       }
 
-      console.log(`File upload - Name: ${originalName}, Mime: ${mime}, Extension: ${fileExtension}, ResourceType: ${resourceType}`);
-
       let uploadResult;
       if (req.file.buffer) {
         // Multer memoryStorage
@@ -90,7 +88,6 @@ export async function updateDeliveryPersonProfile(req, res) {
 
       if (uploadResult?.secure_url) {
         profileData.license = uploadResult.secure_url;
-        console.log(`Upload successful - URL: ${uploadResult.secure_url}, ResourceType: ${uploadResult.resource_type}`);
       }
     }
 

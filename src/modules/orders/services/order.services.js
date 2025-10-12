@@ -1,6 +1,7 @@
 import * as models from '../models/order.models.js';
 import db from '../../../config/db.js';
 import * as notificationServices from '../../notifications/services/notification.services.js';
+import * as notificationModels from '../../notifications/models/notification.models.js';
 
 // Helper function to update product status based on stock availability
 async function updateProductStatus(productId, variationId = null) {
@@ -777,7 +778,8 @@ export async function cancelOrderByCustomer(orderId, customerId, cancellationRea
     const updateData = {
       status: 'cancelled',
       rejection_reason: cancellationReason,
-      updated_at: new Date()
+      updated_at: new Date(),
+      payment_status: 'cancelled'
     };
 
     const result = await db('byt_orders')
@@ -842,7 +844,6 @@ export async function completeOrderByDelivery(orderId, deliveryPersonId) {
     const updatedOrder = await updateOrder(orderId, { status: 'completed', status_updated_by: deliveryPersonId });
 
     // Send notifications to admin and customer
-    const notificationModels = (await import('../../notifications/models/notification.models.js')).default;
     const adminNotification = {
       type: 'order',
       title: 'Order Completed',
@@ -900,7 +901,6 @@ export async function rejectOrderByDelivery(orderId, deliveryPersonId, rejection
     const updatedOrder = await updateOrder(orderId, { status: 'rejected', rejection_reason: rejectionReason, status_updated_by: deliveryPersonId });
 
     // Send notifications to admin and customer
-    const notificationModels = (await import('../../notifications/models/notification.models.js')).default;
     const adminNotification = {
       type: 'order',
       title: 'Order Rejected',
@@ -925,5 +925,59 @@ export async function rejectOrderByDelivery(orderId, deliveryPersonId, rejection
     return { success: true, order: updatedOrder };
   } catch (error) {
     throw new Error(`Error rejecting order: ${error.message}`);
+  }
+}
+
+export async function markOrderReceivedByUser(orderId, customerId) {
+  try {
+    // Verify the order belongs to the customer
+    const order = await db('byt_orders')
+      .where('id', orderId)
+      .andWhere('user_id', customerId)
+      .first();
+
+    if (!order) {
+      return { success: false, error: 'Order not found or does not belong to this customer' };
+    }
+
+    // Check if order can be marked as received (must be completed or delivered)
+    if (!['completed', 'delivered'].includes(order.status)) {
+      return { success: false, error: 'Order cannot be marked as received at this stage' };
+    }
+
+    // Update order status to received
+    const updateData = {
+      status: 'received',
+      updated_at: new Date()
+    };
+
+    const result = await db('byt_orders')
+      .where('id', orderId)
+      .update(updateData);
+
+    if (result > 0) {
+      // Get updated order details
+      const orderResult = await getOrderById(orderId);
+
+      // Send notification for order received
+      try {
+        const customer = await db('byt_users')
+          .where('id', customerId)
+          .select('firstname', 'lastname')
+          .first();
+
+        if (customer) {
+          await notificationServices.createOrderReceivedNotification(orderResult.order, customer);
+        }
+      } catch (notificationError) {
+        console.error('Error sending order received notification:', notificationError);
+      }
+
+      return { success: true, order: orderResult.order };
+    } else {
+      return { success: false, error: 'Order not found or could not be updated' };
+    }
+  } catch (error) {
+    return { success: false, error: error.message };
   }
 }

@@ -1,6 +1,8 @@
 import * as notificationModels from '../models/notification.models.js';
 import * as emailService from '../../config/services/email.services.js';
 import * as smsService from '../../auth/services/sms.services.js';
+import * as generalSettingsModels from '../../general-settings/models/generalSettings.models.js';
+import * as logoModels from '../../logos/models/logo.models.js';
 
 export const createNotification = async (notificationData) => {
   try {
@@ -400,6 +402,26 @@ export const createOrderCancellationNotification = async (order, customer) => {
   }
 };
 
+// Order received notification
+export const createOrderReceivedNotification = async (order, customer) => {
+  try {
+    const notification = {
+      type: 'order',
+      title: 'Order Received',
+      message: `Customer ${customer.firstname} ${customer.lastname} has confirmed receipt of order #${order.order_number}`,
+      recipient_type: 'admin',
+      recipient_id: null,
+      reference_type: 'order',
+      reference_id: order.id
+    };
+
+    await notificationModels.createNotification(notification);
+    return { success: true };
+  } catch (error) {
+    throw new Error(`Error creating order received notification: ${error.message}`);
+  }
+};
+
 // Delete a notification by ID for a user
 export const deleteNotification = async (notificationId, userId) => {
   try {
@@ -427,5 +449,307 @@ export const markAllNotificationsAsRead = async (userId) => {
     return true;
   } catch (error) {
     throw new Error(`Error marking all notifications as read: ${error.message}`);
+  }
+};
+
+// Send customer support email
+export const sendSupportEmail = async (user, supportData) => {
+  try {
+    const { subject, message, attachments = [] } = supportData;
+
+    // Get email configuration
+    const emailConfigResult = await emailService.getEmailConfiguration();
+    if (!emailConfigResult.success) {
+      throw new Error('Email configuration not found. Please configure email settings first.');
+    }
+
+    // Get admin email and company details from general settings
+    const settings = await generalSettingsModels.getSettings();
+    const adminEmail = settings?.company_email || 'buytown@gmail.com';
+    const companyName = settings?.company_name || 'BuyTown';
+    const companyDetails = settings?.company_details || 'Your trusted online marketplace for quality products and services.';
+    const companyPhone = settings?.company_phone_number || '+91-XXXXXXXXXX';
+
+    // Get company logo
+    const logos = await logoModels.getAllLogos();
+    const logoUrl = logos.length > 0 ? logos[0].file_path : null;
+
+    // Create modern fixed-width HTML email template
+    const htmlTemplate = `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Customer Support Request - ${companyName}</title>
+        <style>
+          body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.5;
+            color: #333;
+            width: 600px;
+            margin: 0 auto;
+            background-color: #f8f9fa;
+            padding: 20px;
+          }
+          .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+          }
+          .header {
+            background-color: #ffffff;
+            color: #333333;
+            padding: 30px 20px;
+            border-radius: 12px 12px 0 0;
+            text-align: center;
+            margin: -30px -30px 30px -30px;
+            border-bottom: 2px solid #e9ecef;
+          }
+          .logo-section {
+            margin-bottom: 15px;
+          }
+          .logo {
+            max-width: 120px;
+            height: auto;
+            border-radius: 8px;
+            background-color: white;
+            padding: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          }
+          .header h1 {
+            margin: 10px 0 0 0;
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+          }
+          .company-tagline {
+            font-size: 14px;
+            opacity: 0.9;
+            margin: 8px 0 0 0;
+            font-weight: 300;
+          }
+          .support-badge {
+            background-color: #ffffff;
+            color: #333333;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            display: inline-block;
+            margin-bottom: 20px;
+            border: 2px solid #e9ecef;
+          }
+          .customer-info {
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 2px solid #f0f2f5;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+          }
+          .customer-info h3 {
+            margin-top: 0;
+            color: #333333;
+            font-size: 18px;
+            font-weight: 600;
+          }
+          .info-row {
+            display: flex;
+            margin-bottom: 10px;
+            align-items: center;
+          }
+          .info-label {
+            font-weight: 600;
+            min-width: 90px;
+            color: #333333;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+          }
+          .info-value {
+            color: #555555;
+            flex: 1;
+            font-weight: 500;
+            font-size: 14px;
+          }
+          .message-section {
+            background-color: #ffffff;
+            border: 2px solid #f0f2f5;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+          }
+          .message-section h3 {
+            margin-top: 0;
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+            font-size: 18px;
+            font-weight: 600;
+          }
+          .message-content {
+            background: linear-gradient(135deg, #f8f9ff 0%, #e8f2ff 100%);
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-top: 15px;
+            color: #333333;
+          }
+          .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #f0f2f5;
+            color: #666666;
+            font-size: 13px;
+          }
+          .footer p {
+            margin: 8px 0;
+          }
+          .brand {
+            color: #667eea;
+            font-weight: 700;
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+          }
+          .company-details {
+            background: linear-gradient(135deg, #f8f9ff 0%, #e8f2ff 100%);
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+            font-style: italic;
+            color: #333333;
+            font-size: 13px;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+          }
+          .contact-info {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+          }
+          .contact-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #333333;
+            background: linear-gradient(135deg, #f8f9ff 0%, #e8f2ff 100%);
+            padding: 8px 12px;
+            border-radius: 20px;
+            border: 1px solid #e1e8ed;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+          }
+          .timestamp {
+            color: #888888;
+            font-size: 12px;
+            margin-top: 15px;
+            font-style: italic;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <div class="logo-section">
+              ${logoUrl ? `<img src="${logoUrl}" alt="${companyName} Logo" class="logo">` : `<div style="width: 120px; height: 60px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 16px;">${companyName}</div>`}
+            </div>
+            <h1>🛠️ Support Request</h1>
+            <div class="company-tagline">We value your feedback</div>
+          </div>
+
+          <div class="support-badge">Support Ticket</div>
+
+          <div class="customer-info">
+            <h3>👤 Customer Details</h3>
+            <div class="info-row">
+              <span class="info-label">Name:</span>
+              <span class="info-value">${user.firstname || 'N/A'} ${user.lastname || ''}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Phone:</span>
+              <span class="info-value">${user.phone_no || 'Not provided'}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">User ID:</span>
+              <span class="info-value">#${user.id}</span>
+            </div>
+          </div>
+
+          <div class="message-section">
+            <h3>📝 Request Details</h3>
+            <div class="info-row" style="margin-bottom: 15px;">
+              <span class="info-label">Subject:</span>
+              <span class="info-value" style="font-weight: 600;">${subject}</span>
+            </div>
+            <div class="message-content">${message}</div>
+          </div>
+
+          <div class="company-details">
+            <strong>About ${companyName}:</strong> ${companyDetails}
+          </div>
+
+          <div class="footer">
+            <p><strong class="brand">${companyName}</strong> - Support System</p>
+            <div class="contact-info">
+              <div class="contact-item">📧 ${adminEmail}</div>
+              <div class="contact-item">📞 ${companyPhone}</div>
+            </div>
+            <p>Please respond to this email to assist the customer.</p>
+            <p class="timestamp">Generated on ${new Date().toLocaleString()}</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Email to admin
+    const adminEmailData = {
+      to: adminEmail,
+      cc: user.email, // CC the customer
+      subject: `Customer Support: ${subject}`,
+      html: htmlTemplate,
+      attachments: attachments
+    };
+
+    // Send the email
+    const sendResult = await emailService.sendEmail(emailConfigResult.config, adminEmailData);
+
+    if (!sendResult.success) {
+      throw new Error(sendResult.error || 'Failed to send support email');
+    }
+
+    // Create admin notification for the support request
+    const adminNotification = {
+      type: 'support',
+      title: 'New Customer Support Request',
+      message: `Customer ${user.firstname} ${user.lastname} submitted a support request: ${subject}`,
+      recipient_type: 'admin',
+      recipient_id: null,
+      reference_type: 'user',
+      reference_id: user.id
+    };
+
+    await createNotification(adminNotification);
+
+    return {
+      success: true,
+      message: 'Support email sent successfully',
+      messageId: sendResult.messageId
+    };
+
+  } catch (error) {
+    throw new Error(`Error sending support email: ${error.message}`);
   }
 };

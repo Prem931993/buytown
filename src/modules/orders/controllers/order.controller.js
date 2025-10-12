@@ -1,5 +1,7 @@
 import * as services from '../services/order.services.js';
 import * as pdfServices from '../services/pdf.services.js';
+import * as smsServices from '../../auth/services/sms.services.js';
+import knex from '../../../config/db.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -425,20 +427,59 @@ export async function getAllInvoices(req, res) {
 export async function completeOrderByDelivery(req, res) {
   try {
     const { id } = req.params;
+    const { otp } = req.body;
     const deliveryPersonId = req.user.id; // Assuming user auth middleware sets req.user
 
-    const result = await services.completeOrderByDelivery(parseInt(id), deliveryPersonId);
+    // Get delivery person details to get phone
+    const deliveryPerson = await knex('byt_users').where({ id: deliveryPersonId }).first();
+    if (!deliveryPerson) {
+      return res.status(404).json({
+        success: false,
+        error: 'Delivery person not found'
+      });
+    }
 
-    if (result.success) {
+    if (otp) {
+      // Verify OTP
+      const otpVerification = await smsServices.verifyOtp(deliveryPerson.phone_no, otp);
+      if (!otpVerification.success) {
+        return res.status(400).json({
+          success: false,
+          error: otpVerification.error
+        });
+      }
+
+      // OTP verified, complete the order
+      const result = await services.completeOrderByDelivery(parseInt(id), deliveryPersonId);
+
+      if (result.success) {
+        res.json({
+          success: true,
+          message: 'Order completed successfully',
+          order: result.order
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          error: result.error
+        });
+      }
+    } else {
+
+      // Generate OTP
+      const otp = smsServices.generateOtp();
+      const otpResult = await smsServices.sendOtp(deliveryPerson.phone_no, deliveryPerson.email, otp);
+      if (!otpResult.success) {
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to send OTP'
+        });
+      }
+
       res.json({
         success: true,
-        message: 'Order completed successfully',
-        order: result.order
-      });
-    } else {
-      res.status(400).json({
-        success: false,
-        error: result.error
+        message: 'OTP sent to your phone for order completion verification',
+        otp: otp // For testing, remove in production
       });
     }
   } catch (error) {
@@ -461,7 +502,6 @@ export async function rejectOrderByDelivery(req, res) {
         error: 'Rejection reason is required'
       });
     }
-
     const result = await services.rejectOrderByDelivery(parseInt(id), deliveryPersonId, rejection_reason);
 
     if (result.success) {
@@ -474,6 +514,140 @@ export async function rejectOrderByDelivery(req, res) {
       res.status(400).json({
         success: false,
         error: result.error
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+}
+
+export async function cancelOrderByUser(req, res) {
+  try {
+    const { id } = req.params;
+    const { cancellation_reason } = req.body;
+    const customerId = req.user.id; // Assuming user auth middleware sets req.user
+    console.log("customerId", customerId)
+    if (!cancellation_reason) {
+      return res.status(400).json({
+        success: false,
+        error: 'Cancellation reason is required'
+      });
+    }
+    console.log("cancellation_reason", cancellation_reason)
+
+    const result = await services.cancelOrderByCustomer(parseInt(id), customerId, cancellation_reason);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'Order cancelled successfully',
+        order: result.order
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+}
+
+export async function markOrderReceivedByUser(req, res) {
+  try {
+    const { id } = req.params;
+    const { otp } = req.body;
+    const customerId = req.user.id; // Assuming user auth middleware sets req.user
+
+    // Get user details to get phone
+    const user = await knex('byt_users').where({ id: customerId }).first();
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    if (otp) {
+      // Verify OTP
+      const otpVerification = await smsServices.verifyOtp(user.phone_no, otp);
+      if (!otpVerification.success) {
+        return res.status(400).json({
+          success: false,
+          error: otpVerification.error
+        });
+      }
+
+      // OTP verified, complete the order
+      const result = await services.markOrderReceivedByUser(parseInt(id), customerId);
+
+      if (result.success) {
+        res.json({
+          success: true,
+          message: 'Order marked as received successfully',
+          order: result.order
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          error: result.error
+        });
+      }
+    } else {
+      // Generate OTP
+      const otp = smsServices.generateOtp();
+      const otpResult = await smsServices.sendOtp(user.phone_no, user.email, otp);
+      if (!otpResult.success) {
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to send OTP'
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'OTP sent to your phone for order completion verification',
+        otp: otp // For testing, remove in production
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+}
+
+export async function getUserOrderById(req, res) {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id; // From auth middleware
+
+    const result = await services.getOrderById(parseInt(id));
+
+    if (result.success) {
+      if (result.order && result.order.user_id === userId) {
+        res.json({
+          success: true,
+          order: result.order
+        });
+      } else {
+        res.status(403).json({
+          success: false,
+          error: 'Unauthorized: Order does not belong to this user'
+        });
+      }
+    } else {
+      res.status(404).json({
+        success: false,
+        error: result.error || 'Order not found'
       });
     }
   } catch (error) {

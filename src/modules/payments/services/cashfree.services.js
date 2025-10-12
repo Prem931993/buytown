@@ -191,7 +191,7 @@ export async function verifyCashfreePayment(orderId) {
         .where({ id: orderId })
         .update({
           payment_status: 'completed',
-          status: 'confirmed', // Move to confirmed status
+          status: 'awaiting_confirmation', // Move to confirmed status
           updated_at: knex.fn.now()
         });
     } else if (['CANCELLED', 'FAILED'].includes(paymentData.order_status)) {
@@ -240,7 +240,6 @@ export async function handleCashfreeWebhook(webhookData) {
     if (!payment) {
       return { success: false, error: 'Payment record not found' };
     }
-
     // Update payment status
     await knex('byt_payments')
       .where({ id: payment.id })
@@ -256,7 +255,7 @@ export async function handleCashfreeWebhook(webhookData) {
         .where({ id: payment.order_id })
         .update({
           payment_status: 'completed',
-          status: 'confirmed',
+          status: 'awaiting_confirmation',
           updated_at: knex.fn.now()
         });
     } else if (['CANCELLED', 'FAILED'].includes(orderStatus)) {

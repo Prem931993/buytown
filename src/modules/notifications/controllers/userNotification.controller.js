@@ -160,3 +160,51 @@ export const markAllNotificationsAsRead = async (req, res) => {
     });
   }
 };
+
+// Send customer support email
+export const sendSupportEmail = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { subject, message } = req.body;
+    const attachments = req.files || []; // Files from multer
+
+    // Validate required fields
+    if (!subject || !message) {
+      return res.status(400).json({
+        success: false,
+        message: 'Subject and message are required'
+      });
+    }
+
+    // Get user details (assuming user info is available from middleware)
+    const user = req.user; // Assuming middleware populates user info
+
+    // Process attachments for email service
+    const processedAttachments = attachments.map(file => ({
+      filename: file.originalname,
+      content: file.buffer,
+      contentType: file.mimetype
+    }));
+
+    // Send support email
+    const result = await notificationService.sendSupportEmail(user, {
+      subject,
+      message,
+      attachments: processedAttachments
+    });
+
+    res.status(200).json({
+      success: true,
+      message: result.message,
+      data: {
+        messageId: result.messageId
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      message: 'Failed to send support email'
+    });
+  }
+};

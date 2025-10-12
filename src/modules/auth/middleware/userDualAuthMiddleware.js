@@ -51,7 +51,10 @@ export default async function verifyUserDualAuth(req, res, next) {
     req.user = {
       id: user.id,
       role_id: user.role_id,
-      phone: user.phone
+      phone_no: user.phone_no,
+      email: user.email,
+      firstname: user.firstname,
+      lastname: user.lastname
     };
 
     next();
