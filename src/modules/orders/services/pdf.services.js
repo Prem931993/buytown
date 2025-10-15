@@ -1,8 +1,12 @@
 import * as invoiceModels from '../models/invoice.models.js';
 import db from '../../../config/db.js';
-import PDFDocument from 'pdfkit';
+import { chromium } from 'playwright';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Theme colors
 const COLORS = {
@@ -169,134 +173,64 @@ async function getOrderDetails(orderId) {
   }
 }
 
-// ------------------------- Renderer -------------------------
+// ------------------------- HTML Template Renderer -------------------------
 
-// ------------------------- Renderer (Updated to Match TAX INVOICE) -------------------------
+function renderInvoiceHTML(order, title = 'TAX INVOICE') {
+  const templatePath = path.join(process.cwd(), 'templates/invoice.html');
+  let html = fs.readFileSync(templatePath, 'utf8');
 
-function renderInvoice(doc, order, title = 'TAX INVOICE') {
-  // Header
-  doc.font('Bold').fontSize(16).text('BUYTOWN HARDWARE MARKET', { align: 'center' });
-  doc.moveDown(0.5);
-  doc.font('Regular').fontSize(10).text(
-    '66A, NESAVALAR COLONY, ONDIPUDUR, COIMBATORE Tamil Nadu 641016, India',
-    { align: 'center' }
-  );
-  doc.text('GSTIN: 33CQTPR3346B1ZQ', { align: 'center' });
-  doc.text('9677254546 | buytowncbe@gmail.com', { align: 'center' });
-
-  doc.moveDown(1);
-
-  // Invoice title + number
-  doc.font('Bold').fontSize(14).text(`${title} ${order.order_number}`, { align: 'center' });
-  doc.moveDown(1);
-
-  // Customer Info (Billing Address)
-  doc.font('Bold').fontSize(11).text(`${order.customer.name}`, 50, doc.y);
-  if (order.billingAddress) {
-    doc.font('Regular').fontSize(10).text(order.billingAddress.street || '', 50);
-    doc.text(`${order.billingAddress.city || ''} ${order.billingAddress.state || ''} ${order.billingAddress.zip || ''}`, 50);
-    doc.text(order.billingAddress.country || '', 50);
-  }
-  doc.text(`Place Of Supply: Tamil Nadu (33)`, 50, doc.y + 5);
-
-  // Shipping Address
-  if (order.shippingAddress) {
-    doc.font('Bold').fontSize(11).text('Shipping Address:', 300, doc.y - 40);
-    doc.font('Regular').fontSize(10).text(order.shippingAddress.street || '', 300);
-    doc.text(`${order.shippingAddress.city || ''} ${order.shippingAddress.state || ''} ${order.shippingAddress.zip || ''}`, 300);
-    doc.text(order.shippingAddress.country || '', 300);
-  }
-
-  // Vehicle Information
-  if (order.deliveryVehicleNumber !== 'N/A' || order.deliveryVehicleType !== 'N/A') {
-    doc.font('Bold').fontSize(11).text('Delivery Details:', 50, doc.y + 10);
-    doc.font('Regular').fontSize(10).text(`Vehicle Number: ${order.deliveryVehicleNumber}`, 50);
-    doc.text(`Vehicle Type: ${order.deliveryVehicleType}`, 50);
-    doc.text(`Delivery distance: ${order.deliveryDistance} (km)`, 50);
-  }
-
-  doc.moveDown(2);
-
-  // Table Header
-  let tableTop = doc.y + 10;
-  const colX = {
-    sno: 30,
-    product: 50,
-    sku: 200,
-    hsn: 280,
-    price: 340,
-    qty: 390,
-    taxRate: 430,
-    taxAmt: 480,
-    totalWithoutTax: 530
+  // Prepare data for template
+  const data = {
+    order_number: order.order_number,
+    customer_name: order.customer.name,
+    billing_address: order.billingAddress ? `${order.billingAddress.street || ''}\n${order.billingAddress.city || ''} ${order.billingAddress.state || ''} ${order.billingAddress.zip_code || ''}\n${order.billingAddress.country || ''}` : '',
+    shipping_address: order.shippingAddress ? `${order.shippingAddress.street || ''}\n${order.shippingAddress.city || ''} ${order.shippingAddress.state || ''} ${order.shippingAddress.zip_code || ''}\n${order.shippingAddress.country || ''}` : '',
+    date_of_bill: new Date(order.orderDate).toLocaleDateString('en-GB'),
+    place_of_supply: order.shippingAddress ? `${order.shippingAddress.city || ''}, ${order.shippingAddress.state || ''}, ${order.shippingAddress.zip_code || ''}` : '',
+    items: order.items.map(item => ({
+      ...item,
+      unit: 'Nos', // Assuming default unit
+      price: item.price.toFixed(2),
+      total_without_tax: item.total_without_tax.toFixed(2),
+      gst_rate: item.tax_rate
+    })),
+    subtotal: order.subtotal.toFixed(2),
+    tax: order.tax.toFixed(2),
+    delivery_charges: order.deliveryCharges.toFixed(2),
+    total: order.total.toFixed(2)
   };
 
-  doc.font('Bold').fontSize(8);
-  doc.text('S.NO', colX.sno, tableTop);
-  doc.text('Product', colX.product, tableTop);
-  doc.text('SKU', colX.sku, tableTop);
-  doc.text('HSN/SAC', colX.hsn, tableTop);
-  doc.text('Price', colX.price, tableTop);
-  doc.text('Qty', colX.qty, tableTop);
-  doc.text('Tax Rate', colX.taxRate, tableTop);
-  doc.text('Tax Amount', colX.taxAmt, tableTop);
-  doc.text('Total (Without Tax)', colX.totalWithoutTax, tableTop);
+  // Replace placeholders with data
+  html = html.replace(/{{order_number}}/g, data.order_number);
+  html = html.replace(/{{customer_name}}/g, data.customer_name);
+  html = html.replace(/{{billing_address}}/g, data.billing_address);
+  html = html.replace(/{{shipping_address}}/g, data.shipping_address);
+  html = html.replace(/{{place_of_supply}}/g, data.place_of_supply);
+  html = html.replace(/{{date_of_bill}}/g, data.date_of_bill);
+  html = html.replace(/{{subtotal}}/g, data.subtotal);
+  html = html.replace(/{{tax}}/g, data.tax);
+  html = html.replace(/{{delivery_charges}}/g, data.delivery_charges);
+  html = html.replace(/{{total}}/g, data.total);
+  html = html.replace(/{{place_supply}}/g, data.total);
 
-  doc.moveTo(30, tableTop - 2).lineTo(570, tableTop - 2).stroke();
-
-  // Table Rows
-  doc.font('Regular').fontSize(8);
-  let y = tableTop + 20;
-  order.items.forEach((item, idx) => {
-    doc.text(idx + 1, colX.sno, y);
-    doc.text(item.name, colX.product, y, { width: 140 });
-    doc.text(item.sku, colX.sku, y, { width: 90 });
-    doc.text(item.hsn_code || '—', colX.hsn, y, { width: 60 });
-    doc.text(item.price.toFixed(2), colX.price, y, { width: 60 });
-    doc.text(item.quantity.toString(), colX.qty, y, { width: 60 });
-    doc.text(`${item.tax_rate}%`, colX.taxRate, y, { width: 30 });
-    doc.text(item.tax_amount.toFixed(2), colX.taxAmt, y, { width: 30 });
-    doc.text(item.total_without_tax.toFixed(2), colX.totalWithoutTax, y, { width: 100 });
-    y += 18;
+  // Handle items loop (simple replacement for now)
+  let itemsHtml = '';
+  data.items.forEach((item, index) => {
+    itemsHtml += `
+      <tr>
+        <td>${index + 1}</td>
+        <td>${item.name}</td>
+        <td>${item.hsn_code}</td>
+        <td>${item.quantity} ${item.unit}</td>
+        <td>${item.gst_rate}%</td>
+        <td>${item.price}</td>
+        <td>${item.total_without_tax}</td>
+      </tr>
+    `;
   });
+  html = html.replace(/{{#each items}}[\s\S]*?{{\/each}}/g, itemsHtml);
 
-  doc.moveDown(2);
-
-  // Totals Section
-  y += 15;
-  doc.font('Regular').fontSize(10);
-  doc.text(`Sub Total`, 400, y); doc.text(order.subtotal.toFixed(2), 500, y, { width: 80, align: 'right' });
-
-
-
-
-  if (order.tax > 0) {
-    y += 20;
-    doc.text(`Tax`, 400, y); doc.text(order.tax.toFixed(2), 500, y, { width: 80, align: 'right' });
-  }
-
-  y += 20;
-  doc.text(`Delivery charge`, 400, y);
-  doc.text(order.deliveryCharges.toFixed(2), 500, y, { width: 80, align: 'right' });
-
-  y += 20;
-  doc.font('Bold').text(`Total`, 400, y); doc.text(order.total.toFixed(2), 500, y, { width: 80, align: 'right' });
-
-  y += 20;
-  // Removed duplicate TOTAL line
-
-  y += 20;
-  doc.font('Regular').text(`DATE OF BILL : ${new Date(order.orderDate).toLocaleDateString('en-GB')}`, 50, y);
-
-  doc.moveDown(3);
-
-  // Footer
-  doc.font('Regular').fontSize(10).text(
-    'Thanks for your business with BUYTOWN HARDWARE MARKET',
-    { align: 'center' }
-  );
-  doc.moveDown(0.5);
-  doc.text('BUYTOWN HARDWARE MARKET', { align: 'center' });
+  return html;
 }
 
 
@@ -310,21 +244,23 @@ export async function generateInvoicePDF(orderId, res) {
       return;
     }
 
-    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    const browser = await chromium.launch();
+    const page = await browser.newPage();
 
-    // Register fonts
-    if (fs.existsSync(FONT_PATHS.regular) && fs.existsSync(FONT_PATHS.bold)) {
-      doc.registerFont('Regular', FONT_PATHS.regular);
-      doc.registerFont('Bold', FONT_PATHS.bold);
-    } else {
-      throw new Error('Missing font files. Please place NotoSans-Regular.ttf and NotoSans-Bold.ttf in /assets/fonts/');
-    }
+    const htmlContent = renderInvoiceHTML(order, 'TAX INVOICE');
 
-    // Pipe PDF output directly to HTTP response
-    doc.pipe(res);
+    await page.setContent(htmlContent, { waitUntil: 'networkidle' });
 
-    renderInvoice(doc, order, 'INVOICE');
-    doc.end();
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+    });
+
+    await browser.close();
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=invoice_${order.order_number}.pdf`);
+    res.send(pdfBuffer);
 
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -343,26 +279,27 @@ export async function generateOrderConfirmationPDF(orderId) {
     const fileName = `order_confirmation_${order.order_number}_${timestamp}.pdf`;
     const filePath = path.join(invoicesDir, fileName);
 
-    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    const browser = await chromium.launch();
+    const page = await browser.newPage();
 
-    // Register fonts
-    if (fs.existsSync(FONT_PATHS.regular) && fs.existsSync(FONT_PATHS.bold)) {
-      doc.registerFont('Regular', FONT_PATHS.regular);
-      doc.registerFont('Bold', FONT_PATHS.bold);
-    } else {
-      throw new Error('Missing font files. Please place NotoSans-Regular.ttf and NotoSans-Bold.ttf in /assets/fonts/');
-    }
+    const htmlContent = renderInvoiceHTML(order, 'ORDER CONFIRMATION');
 
-    const writeStream = fs.createWriteStream(filePath);
-    doc.pipe(writeStream);
+    await page.setContent(htmlContent, { waitUntil: 'networkidle' });
 
-    renderInvoice(doc, order, 'ORDER CONFIRMATION');
-    doc.end();
-
-    await new Promise((res, rej) => {
-      writeStream.on('finish', res);
-      writeStream.on('error', rej);
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: {
+        top: '20px',
+        right: '20px',
+        bottom: '20px',
+        left: '20px'
+      }
     });
+
+    await browser.close();
+
+    fs.writeFileSync(filePath, pdfBuffer);
 
     const stats = fs.statSync(filePath);
     const invoiceResult = await invoiceModels.createInvoice({

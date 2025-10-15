@@ -1,144 +1,243 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Invoice BT/25-26/003</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-      line-height: 1.6;
-    }
-    .invoice-box {
-      max-width: 800px;
-      margin: auto;
-      border: 1px solid #eee;
-      padding: 20px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.15);
-    }
-    .title {
-      text-align: center;
-      font-size: 22px;
-      font-weight: bold;
-      margin-bottom: 20px;
-      text-transform: uppercase;
-    }
-    .section {
-      margin-bottom: 20px;
-    }
-    .two-column {
-      display: flex;
-      justify-content: space-between;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 15px;
-    }
-    table, th, td {
-      border: 1px solid #ddd;
-      padding: 8px;
-    }
-    th {
-      background: #3c3d3a;
-      text-align: left;
-      color: #fff;
-    }
-    .totals {
-      text-align: right;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Invoice {{order_number}}</title>
+<style>
+  :root {
+    --primary: #000000;
+    --light: #ffffff;
+    --border: #E2E8F0;
+    --text: #2D3748;
+  }
+
+  body {
+    font-family: "Segoe UI", Arial, sans-serif;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--light);
+    margin: 0;
+    padding: 30px;
+  }
+
+  .invoice-container {
+    background: #fff;
+    width: 100%;                /* Full width of the printable area */
+    max-width: none;            /* Remove the cap */
+    margin: 0;                  /* Remove centering */
+    padding: 20px 30px;         /* Reduce padding */
+    box-sizing: border-box;     /* Ensure padding doesn't overflow */
+  }
+
+  /* ---------- Header ---------- */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid var(--primary);
+    padding-bottom: 15px;
+  }
+
+  .company-info {
+    text-align: left;
+  }
+
+  .company-info h1 {
+    font-size: 22px;
+    margin: 0;
+    color: var(--primary);
+  }
+
+  .company-info p {
+    margin: 3px 0;
+    font-size: 12px;
+    color: #444;
+  }
+
+  .logo img {
+    height: 60px;
+  }
+
+  .invoice-title {
+    text-align: right;
+    font-weight: 700;
+    font-size: 15px;
+    margin-top: 10px;
+  }
+
+  /* ---------- Addresses ---------- */
+  .address-row {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 25px;
+  }
+
+  .address-card {
+    width: 48%;
+    border: 1px solid var(--border);
+    background: var(--light);
+    border-radius: 6px;
+    padding: 10px 15px;
+  }
+
+  .address-card h3 {
+    color: var(--primary);
+    margin: 0 0 5px 0;
+    font-size: 13px;
+    text-transform: uppercase;
+  }
+
+  .address-card p {
+    margin: 3px 0;
+    line-height: 1.5;
+  }
+
+  .supply-info {
+    margin-top: 20px;
+    font-size: 13px;
+  }
+
+  /* ---------- Items table ---------- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 25px;
+    font-size: 13px;
+  }
+
+  th, td {
+    border: 1px solid var(--border);
+    padding: 10px;
+  }
+
+  th {
+    background: var(--primary);
+    color: #fff;
+    text-align: left;
+    font-weight: 600;
+  }
+
+  td {
+    vertical-align: top;
+  }
+
+  /* ---------- Totals ---------- */
+  .totals {
+    margin-top: 25px;
+    float: right;
+    width: 45%;
+    border-collapse: collapse;
+    border-top: 2px solid var(--primary);
+  }
+
+  .totals td {
+    padding: 8px;
+  }
+
+  .totals td:first-child {
+    text-align: right;
+    font-weight: 600;
+  }
+
+  .totals tr:last-child td {
+    border-top: 2px solid var(--primary);
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--primary);
+  }
+
+  /* ---------- Footer ---------- */
+  .footer {
+    clear: both;
+    margin-top: 60px;
+    border-top: 1px solid var(--border);
+    padding-top: 10px;
+    font-size: 13px;
+  }
+
+  .footer strong {
+    color: var(--primary);
+  }
+</style>
 </head>
 <body>
-  <div class="invoice-box">
-    
-    
-    <div class="section two-column">
-      <div>
-        <strong>From:</strong><br>
-        BUYTOWN HARDWARE MARKET<br>
-        66A, Nesavalar Colony<br>
-        Ondipudur<br>
-        Coimbatore, Tamil Nadu 641016<br>
-        India<br>
-        GSTIN: 33CQTPR3346B1ZQ<br>
-        Phone: 9677254546<br>
-        Email: buytowncbe@gmail.com
+  <div class="invoice-container">
+
+    <!-- HEADER -->
+    <div class="header">
+      <div class="company-info">
+        <h1>BUYTOWN HARDWARE MARKET</h1>
+        <p>66A, NESAVALAR COLONY, ONDIPUDUR, COIMBATORE Tamil Nadu 641016, India</p>
+        <p>GSTIN: 33CQTPR3346B1ZQ</p>
+        <p>9677254546 | buytowncbe@gmail.com</p>
       </div>
-      <div>
-       
-        <div class="title">TAX INVOICE</div>
-        <strong>Invoice No:</strong> BT/25-26/003<br>
-        <strong>Date of Bill:</strong> 21/06/2025<br>
-        <strong>Place of Supply:</strong> Tamil Nadu (33)
+      <div class="logo">
+        <img src="https://res.cloudinary.com/dlwbcnyhq/image/upload/v1756573604/logos/gifwq7oo9g3vlc9sawdw.jpg" alt="Logo">
       </div>
     </div>
-    
-    <div class="section">
-       <strong>To:</strong><br>
-        Mr. Debashis Chattopadhyay<br>
-        Plot No 1586, 5th Street<br>
-        G Square City, Phase - I<br>
-        L & T Bypass Road, Pattanam, Sulur<br>
-        Coimbatore - 641016, Tamil Nadu<br>
-        India
+    <div class="invoice-title">TAX INVOICE {{order_number}}</div>
+
+    <!-- ADDRESSES -->
+    <div class="address-row">
+      <div class="address-card">
+        <h3>Bill To:</h3>
+        <p><strong>{{customer_name}}</strong></p>
+        <p>{{billing_address}}</p>
+      </div>
+
+      <div class="address-card">
+        <h3>Ship To:</h3>
+        <p><strong>{{customer_name}}</strong></p>
+        <p>{{shipping_address}}</p>
+      </div>
     </div>
-    
+
+    <div class="supply-info">
+      <strong>Place of Supply:</strong> {{place_of_supply}}<br>
+      <strong>Date of Bill:</strong> {{date_of_bill}}
+    </div>
+
+    <!-- ITEMS -->
     <table>
       <thead>
         <tr>
-          <th>S.NO</th>
+          <th>S.No</th>
           <th>Description</th>
           <th>HSN/SAC</th>
           <th>Qty</th>
+          <th>GST %</th>
           <th>Rate</th>
           <th>Amount</th>
         </tr>
       </thead>
       <tbody>
+        {{#each items}}
         <tr>
-          <td>1</td>
-          <td>6MM GREEN OPTIMA G 710 8/4</td>
-          <td>44123190</td>
-          <td>1.00 Nos</td>
-          <td>2,650.00</td>
-          <td>2,650.00</td>
+          <td>{{inc @index}}</td>
+          <td>{{name}}</td>
+          <td>{{hsn_code}}</td>
+          <td>{{quantity}} {{unit}}</td>
+          <td>{{gst_rate}}%</td>
+          <td>₹ {{price}}</td>
+          <td>₹ {{total_without_tax}}</td>
         </tr>
+        {{/each}}
       </tbody>
     </table>
-    
-    <table>
-      <tbody>
-        <tr>
-          <td colspan="5" class="totals">Sub Total</td>
-          <td>2,650.00</td>
-        </tr>
-        <tr>
-          <td colspan="5" class="totals">Shipping charge (SAC: 996813)</td>
-          <td>800.00</td>
-        </tr>
-        <tr>
-          <td colspan="5" class="totals">CGST (9%)</td>
-          <td>238.50</td>
-        </tr>
-        <tr>
-          <td colspan="5" class="totals">SGST (9%)</td>
-          <td>238.50</td>
-        </tr>
-        <tr>
-          <th colspan="5" class="totals">TOTAL</th>
-          <th>3,927.00</th>
-        </tr>
-      </tbody>
+
+    <!-- TOTALS -->
+    <table class="totals">
+      <tr><td>Sub Total</td><td>₹ {{subtotal}}</td></tr>
+      <tr><td>Tax</td><td>₹ {{tax}}</td></tr>
+      <tr><td>Delivery Charges</td><td>₹ {{delivery_charges}}</td></tr>
+      <tr><td>Total</td><td>₹ {{total}}</td></tr>
     </table>
-    
-    <div class="section">
+
+    <div style="clear:both;"></div>
+
+    <!-- FOOTER -->
+    <div class="footer">
       <p>Thanks for your business with <strong>BUYTOWN HARDWARE MARKET</strong></p>
-      <p><strong>Bank Details:</strong><br>
-        HDFC Bank Singanallur<br>
-        A/C No: 50200090628094<br>
-        IFSC: HDFC0003647
-      </p>
     </div>
   </div>
 </body>
