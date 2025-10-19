@@ -1,7 +1,7 @@
 import express from 'express';
 import * as controller from '../controllers/delivery-person.controller.js';
 import verifyUserDualAuth from '../../auth/middleware/userDualAuthMiddleware.js';
-import { getUploadMiddleware } from '../../../config/cloudinary.js';
+import { getUploadMiddleware } from '../../../config/ftp.js';
 
 const router = express.Router();
 

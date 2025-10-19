@@ -322,6 +322,20 @@ export const processPendingNotifications = async () => {
   }
 };
 
+// Low stock notification service
+export const checkAndNotifyLowStockProducts = async () => {
+  try {
+    // Get low stock threshold from general settings
+    const settings = await generalSettingsModels.getSettings();
+    const lowStockThreshold = settings?.low_stock_quantity || 5; // Default to 5 if not set
+
+    const result = await notificationModels.createLowStockNotifications(lowStockThreshold);
+    return result;
+  } catch (error) {
+    throw new Error(`Error checking low stock products: ${error.message}`);
+  }
+};
+
 // Order approval notification for admin when delivery person is selected
 export const createOrderApprovalNotification = async (order) => {
   try {

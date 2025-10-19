@@ -236,3 +236,67 @@ export const markAllAsRead = async (userId) => {
     throw new Error(`Error marking all notifications as read: ${error.message}`);
   }
 };
+
+// Low stock notification functions
+export const getLowStockProducts = async (lowStockThreshold) => {
+  try {
+    const products = await knex('byt_products')
+      .select('id', 'name', 'stock', 'sku_code')
+      .where('stock', '<=', lowStockThreshold)
+      .andWhere('stock', '>', 0) // Only products that are not out of stock
+      .andWhere('status', 1) // Only active products (1 = active status)
+      .andWhere('deleted_at', null); // Only non-deleted products
+    return products;
+  } catch (error) {
+    throw new Error(`Error fetching low stock products: ${error.message}`);
+  }
+};
+
+export const createLowStockNotifications = async (lowStockThreshold) => {
+  try {
+    const lowStockProducts = await getLowStockProducts(lowStockThreshold);
+
+    if (lowStockProducts.length === 0) {
+      return { success: true, notifiedProducts: 0, message: 'No products are low on stock' };
+    }
+
+    let totalNotificationsCreated = 0;
+
+    for (const product of lowStockProducts) {
+      // Check if we already have a low stock notification for this product in the last 24 hours
+      const recentNotification = await knex('byt_notifications')
+        .where('type', 'low_stock')
+        .andWhere('reference_type', 'product')
+        .andWhere('reference_id', product.id)
+        .andWhere('created_at', '>=', knex.raw("NOW() - INTERVAL '24 hours'"))
+        .first();
+
+      if (recentNotification) {
+        // Skip if we already notified about this product recently
+        continue;
+      }
+
+      // Create notification for admin
+      const notificationData = {
+        type: 'low_stock',
+        title: 'Low Stock Alert!',
+        message: `Product "${product.name}" (SKU: ${product.sku_code}) has low stock. Current quantity: ${product.stock}`,
+        recipient_type: 'admin',
+        recipient_id: null,
+        reference_type: 'product',
+        reference_id: product.id
+      };
+
+      await createNotification(notificationData);
+      totalNotificationsCreated++;
+    }
+
+    return {
+      success: true,
+      notifiedProducts: totalNotificationsCreated,
+      totalLowStockProducts: lowStockProducts.length
+    };
+  } catch (error) {
+    throw new Error(`Error creating low stock notifications: ${error.message}`);
+  }
+};

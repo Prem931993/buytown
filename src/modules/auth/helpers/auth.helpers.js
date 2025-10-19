@@ -50,12 +50,12 @@ Best regards,
 BuyTown Support Team`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #6366f1;">Password Reset Request</h2>
+          <h2 style="color: #E7BE4C;">Password Reset Request</h2>
           <p>Hello,</p>
           <p>You have requested to reset your password for your BuyTown account.</p>
           <p style="margin: 20px 0;">
             <a href="${resetLink}"
-               style="background-color: #6366f1; color: white; padding: 12px 24px;
+               style="background-color: #E7BE4C; color: #000000; padding: 12px 24px;
                       text-decoration: none; border-radius: 5px; display: inline-block;">
               Reset Your Password
             </a>

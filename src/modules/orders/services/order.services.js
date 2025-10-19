@@ -253,7 +253,7 @@ export async function getAllOrders() {
       .leftJoin('byt_order_items', 'byt_orders.id', 'byt_order_items.order_id')
       .leftJoin('byt_products', 'byt_order_items.product_id', 'byt_products.id')
       .leftJoin('byt_product_variations', 'byt_order_items.variation_id', 'byt_product_variations.id')
-      .leftJoin('byt_variations', 'byt_product_variations.variation_id', 'byt_variations.id')
+      .leftJoin('byt_variations', 'byt_product_variations.variation_id', 'byt_product_variations.id')
       .leftJoin('byt_users as delivery_user', 'byt_orders.delivery_person_id', 'delivery_user.id')
       .select(
         'byt_orders.*',
@@ -437,18 +437,11 @@ export async function getOrdersByUser(userId) {
 
 export async function approveOrder(orderId, vehicleId, deliveryDistance, deliveryPersonId = null) {
   try {
-    // Get vehicle information directly
-    const vehicle = await db('byt_vehicle_management')
-      .where('id', vehicleId)
-      .select('rate_per_km', 'vehicle_type')
-      .first();
+    // Import vehicle model to calculate delivery charges
+    const { calculateDeliveryCharge } = await import('../../vehicles/models/vehicle.models.js');
 
-    if (!vehicle) {
-      return { success: false, error: 'Vehicle not found' };
-    }
-
-    // Calculate delivery charges
-    const deliveryCharges = deliveryDistance * parseFloat(vehicle.rate_per_km);
+    // Calculate delivery charges using new vehicle-based logic
+    const chargeDetails = await calculateDeliveryCharge(vehicleId, deliveryDistance);
 
     // Get current order details to calculate new total
     const currentOrder = await db('byt_orders')
@@ -465,7 +458,7 @@ export async function approveOrder(orderId, vehicleId, deliveryDistance, deliver
                      parseFloat(currentOrder.shipping_amount) +
                      parseFloat(currentOrder.tax_amount) -
                      parseFloat(currentOrder.discount_amount) +
-                     deliveryCharges;
+                     chargeDetails.total_charge;
 
     // Get delivery person name if deliveryPersonId is provided
     let deliveryPersonName = null;
@@ -484,7 +477,7 @@ export async function approveOrder(orderId, vehicleId, deliveryDistance, deliver
     const updateData = {
       status: 'approved',
       delivery_distance: deliveryDistance,
-      delivery_charges: deliveryCharges,
+      delivery_charges: chargeDetails.total_charge,
       delivery_person_id: deliveryPersonId,
       delivery_driver: deliveryPersonName,
       total_amount: newTotal,
@@ -494,14 +487,14 @@ export async function approveOrder(orderId, vehicleId, deliveryDistance, deliver
     const result = await db('byt_orders')
       .where('id', orderId)
       .update(updateData);
-    
+
 
 
     if (result > 0) {
       // Get updated order details
       const orderResult = await getOrderById(orderId);
       await notificationServices.createOrderApprovalNotification(orderResult.order);
-      
+
       // Send notification for order approval
       try {
         const user = {
@@ -602,20 +595,23 @@ export async function rejectOrder(orderId, rejectionReason, rejectedByUserId = n
 
 export async function assignDeliveryPerson(orderId, deliveryPersonId, deliveryDistance) {
   try {
-    // First, get the delivery person's vehicle information to calculate delivery charges
+    // First, get the delivery person's vehicle information
     const deliveryPerson = await db('byt_users')
       .join('byt_user_vehicle', 'byt_users.id', 'byt_user_vehicle.user_id')
       .join('byt_vehicle_management', 'byt_user_vehicle.vehicle_id', 'byt_vehicle_management.id')
       .where('byt_users.id', deliveryPersonId)
-      .select('byt_users.firstname', 'byt_users.lastname', 'byt_vehicle_management.rate_per_km')
+      .select('byt_users.firstname', 'byt_users.lastname', 'byt_vehicle_management.id as vehicle_id')
       .first();
 
     if (!deliveryPerson) {
       return { success: false, error: 'Delivery person not found or no vehicle assigned' };
     }
 
-    // Calculate delivery charges
-    const deliveryCharges = deliveryDistance * deliveryPerson.rate_per_km;
+    // Import vehicle model to calculate delivery charges using new logic
+    const { calculateDeliveryCharge } = await import('../../vehicles/models/vehicle.models.js');
+
+    // Calculate delivery charges using new vehicle-based logic
+    const chargeDetails = await calculateDeliveryCharge(deliveryPerson.vehicle_id, deliveryDistance);
 
     // Create delivery person name
     const deliveryPersonName = `${deliveryPerson.firstname || ''} ${deliveryPerson.lastname || ''}`.trim();
@@ -625,7 +621,7 @@ export async function assignDeliveryPerson(orderId, deliveryPersonId, deliveryDi
       delivery_person_id: deliveryPersonId,
       delivery_driver: deliveryPersonName,
       delivery_distance: deliveryDistance,
-      delivery_charges: deliveryCharges,
+      delivery_charges: chargeDetails.total_charge,
       updated_at: new Date()
     };
 
@@ -654,13 +650,13 @@ export async function markOrderCompleted(orderId) {
 
     // Reduce stock permanently for completed order
     for (const item of orderItems) {
-        // For products, decrease stock and decrease held_quantity
-        await db('byt_products')
-          .where('id', item.product_id)
-          .decrement('stock', item.quantity)
-          .decrement('held_quantity', item.quantity);
-        // Update product status if stock becomes 0
-        await updateProductStatus(item.product_id);
+      // For products, decrease stock and decrease held_quantity
+      await db('byt_products')
+        .where('id', item.product_id)
+        .decrement('stock', item.quantity)
+        .decrement('held_quantity', item.quantity);
+      // Update product status if stock becomes 0
+      await updateProductStatus(item.product_id);
     }
 
     const updateData = {
@@ -715,28 +711,20 @@ export async function calculateDeliveryCharge(orderId, vehicleId) {
       return { success: false, error: 'Delivery distance not calculated for this order' };
     }
 
-    // Get vehicle information directly
-    const vehicle = await db('byt_vehicle_management')
-      .where('id', vehicleId)
-      .select(
-        'rate_per_km',
-        'vehicle_type',
-      )
-      .first();
+    // Import vehicle model to calculate delivery charges using new logic
+    const { calculateDeliveryCharge: calculateVehicleCharge } = await import('../../vehicles/models/vehicle.models.js');
 
-    if (!vehicle) {
-      return { success: false, error: 'Vehicle not found' };
-    }
-
-    // Calculate delivery charge
-    const deliveryCharge = order.delivery_distance * parseFloat(vehicle.rate_per_km);
+    // Calculate delivery charges using new vehicle-based logic
+    const chargeDetails = await calculateVehicleCharge(vehicleId, order.delivery_distance);
 
     return {
       success: true,
-      delivery_charge: deliveryCharge,
+      delivery_charge: chargeDetails.total_charge,
       delivery_distance: order.delivery_distance,
-      vehicle_rate: parseFloat(vehicle.rate_per_km),
-      vehicle_type: vehicle.vehicle_type
+      base_charge: chargeDetails.base_charge,
+      max_distance_km: chargeDetails.max_distance_km,
+      additional_charge_per_km: chargeDetails.additional_charge_per_km,
+      vehicle_type: chargeDetails.vehicle_type || 'N/A'
     };
   } catch (error) {
     return { success: false, error: error.message };

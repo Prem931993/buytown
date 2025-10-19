@@ -9,5 +9,6 @@ router.get('/:id', verifyDualAuth, vehicleController.getVehicle);
 router.post('/', verifyDualAuth, vehicleController.createVehicle);
 router.put('/:id', verifyDualAuth, vehicleController.updateVehicle);
 router.delete('/:id', verifyDualAuth, vehicleController.deleteVehicle);
+router.post('/calculate-charge', verifyDualAuth, vehicleController.calculateDeliveryCharge);
 
 export default router;

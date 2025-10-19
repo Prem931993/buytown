@@ -4,13 +4,13 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import fs from 'fs';
-import { uploadToCloudinary, deleteFromCloudinary, extractPublicIdFromUrl } from '../../../config/cloudinary.js';
+import { uploadToFTP, deleteFromFTP, extractPublicIdFromUrl } from '../../../config/ftp.js';
 
 // Get the directory name
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Configure multer for memory storage (for Cloudinary upload)
+// Configure multer for memory storage (for FTP upload)
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
@@ -57,26 +57,26 @@ export async function createBrand(req, res) {
   try {
     const brandData = req.body;
     
-    // If image file is uploaded, upload to Cloudinary
+    // If image file is uploaded, upload to FTP
     if (req.file) {
       try {
-        const cloudinaryResult = await uploadToCloudinary(req.file.buffer, 'brands');
-        brandData.image = cloudinaryResult.secure_url;
+        const ftpResult = await uploadToFTP(req.file.buffer, 'brands');
+        brandData.image = ftpResult.secure_url;
       } catch (uploadError) {
-        console.error('Error uploading to Cloudinary:', uploadError);
+        console.error('Error uploading to FTP:', uploadError);
         return res.status(500).json({ statusCode: 500, error: 'Failed to upload image' });
       }
     }
     
     const result = await services.createBrandService(brandData);
     if (result.error) {
-      // If there's an error and a file was uploaded to Cloudinary, delete it
+      // If there's an error and a file was uploaded to FTP, delete it
       if (req.file && brandData.image) {
         try {
           const publicId = extractPublicIdFromUrl(brandData.image);
-          await deleteFromCloudinary(publicId);
+          await deleteFromFTP(publicId);
         } catch (deleteError) {
-          console.error('Error deleting from Cloudinary:', deleteError);
+          console.error('Error deleting from FTP:', deleteError);
         }
       }
       return res.status(result.status).json({ statusCode: result.status, error: result.error });
@@ -96,26 +96,26 @@ export async function updateBrand(req, res) {
     // Get the existing brand to check if there's an old image to remove
     const existingBrand = await services.getBrandByIdService(id);
     
-    // If image file is uploaded, upload to Cloudinary
+    // If image file is uploaded, upload to FTP
     if (req.file) {
       try {
-        const cloudinaryResult = await uploadToCloudinary(req.file.buffer, 'brands');
-        brandData.image = cloudinaryResult.secure_url;
+        const ftpResult = await uploadToFTP(req.file.buffer, 'brands');
+        brandData.image = ftpResult.secure_url;
       } catch (uploadError) {
-        console.error('Error uploading to Cloudinary:', uploadError);
+        console.error('Error uploading to FTP:', uploadError);
         return res.status(500).json({ statusCode: 500, error: 'Failed to upload image' });
       }
     }
     
     const result = await services.updateBrandService(id, brandData);
     if (result.error) {
-      // If there's an error and a new file was uploaded to Cloudinary, delete it
+      // If there's an error and a new file was uploaded to FTP, delete it
       if (req.file && brandData.image) {
         try {
           const publicId = extractPublicIdFromUrl(brandData.image);
-          await deleteFromCloudinary(publicId);
+          await deleteFromFTP(publicId);
         } catch (deleteError) {
-          console.error('Error deleting from Cloudinary:', deleteError);
+          console.error('Error deleting from FTP:', deleteError);
         }
       }
       return res.status(result.status).json({ statusCode: result.status, error: result.error });
@@ -125,9 +125,9 @@ export async function updateBrand(req, res) {
     if (req.file && existingBrand.brand && existingBrand.brand.image) {
       try {
         const oldPublicId = extractPublicIdFromUrl(existingBrand.brand.image);
-        await deleteFromCloudinary(oldPublicId);
+        await deleteFromFTP(oldPublicId);
       } catch (deleteError) {
-        console.error('Error deleting old image from Cloudinary:', deleteError);
+        console.error('Error deleting old image from FTP:', deleteError);
       }
     }
     
@@ -150,13 +150,13 @@ export async function deleteBrand(req, res) {
       return res.status(result.status).json({ statusCode: result.status, error: result.error });
     }
     
-    // If the deletion was successful and there was an image, remove the image file from Cloudinary
+    // If the deletion was successful and there was an image, remove the image file from FTP
     if (existingBrand.brand && existingBrand.brand.image) {
       try {
         const publicId = extractPublicIdFromUrl(existingBrand.brand.image);
-        await deleteFromCloudinary(publicId);
+        await deleteFromFTP(publicId);
       } catch (deleteError) {
-        console.error('Error deleting image from Cloudinary:', deleteError);
+        console.error('Error deleting image from FTP:', deleteError);
       }
     }
     

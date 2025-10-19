@@ -4,13 +4,13 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import fs from 'fs';
-import { uploadToCloudinary, deleteFromCloudinary, extractPublicIdFromUrl } from '../../../config/cloudinary.js';
+import { uploadToFTP, deleteFromFTP, extractPublicIdFromUrl } from '../../../config/ftp.js';
 
 // Get the directory name
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Configure multer for memory storage (for Cloudinary upload)
+// Configure multer for memory storage (for FTP upload)
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
@@ -63,7 +63,7 @@ export async function createCategory(req, res) {
       delete categoryData.status;
     }
 
-    // If image file is uploaded, upload to Cloudinary
+    // If image file is uploaded, upload to FTP
     if (req.file) {
       try {
         let fileData;
@@ -77,23 +77,23 @@ export async function createCategory(req, res) {
           throw new Error('No file data available');
         }
 
-        const cloudinaryResult = await uploadToCloudinary(fileData, 'categories');
-        categoryData.image = cloudinaryResult.secure_url;
+        const ftpResult = await uploadToFTP(fileData, 'categories');
+        categoryData.image = ftpResult.secure_url;
       } catch (uploadError) {
-        console.error('Error uploading to Cloudinary:', uploadError);
+        console.error('Error uploading to FTP:', uploadError);
         return res.status(500).json({ statusCode: 500, error: 'Failed to upload image' });
       }
     }
 
     const result = await services.createCategoryService(categoryData);
     if (result.error) {
-      // If there's an error and a file was uploaded to Cloudinary, delete it
+      // If there's an error and a file was uploaded to FTP, delete it
       if (req.file && categoryData.image) {
         try {
           const publicId = extractPublicIdFromUrl(categoryData.image);
-          await deleteFromCloudinary(publicId);
+          await deleteFromFTP(publicId);
         } catch (deleteError) {
-          console.error('Error deleting from Cloudinary:', deleteError);
+          console.error('Error deleting from FTP:', deleteError);
         }
       }
       return res.status(result.status).json({ statusCode: result.status, error: result.error });
@@ -119,7 +119,7 @@ export async function updateCategory(req, res) {
     // Get the existing category to check if there's an old image to remove
     const existingCategory = await services.getCategoryByIdService(id);
 
-    // If image file is uploaded, upload to Cloudinary
+    // If image file is uploaded, upload to FTP
     if (req.file) {
       try {
         let fileData;
@@ -133,35 +133,35 @@ export async function updateCategory(req, res) {
           throw new Error('No file data available');
         }
 
-        const cloudinaryResult = await uploadToCloudinary(fileData, 'categories');
-        categoryData.image = cloudinaryResult.secure_url;
+        const ftpResult = await uploadToFTP(fileData, 'categories');
+        categoryData.image = ftpResult.secure_url;
       } catch (uploadError) {
-        console.error('Error uploading to Cloudinary:', uploadError);
+        console.error('Error uploading to FTP:', uploadError);
         return res.status(500).json({ statusCode: 500, error: 'Failed to upload image' });
       }
     }
 
     const result = await services.updateCategoryService(id, categoryData);
     if (result.error) {
-      // If there's an error and a new file was uploaded to Cloudinary, delete it
+      // If there's an error and a new file was uploaded to FTP, delete it
       if (req.file && categoryData.image) {
         try {
           const publicId = extractPublicIdFromUrl(categoryData.image);
-          await deleteFromCloudinary(publicId);
+          await deleteFromFTP(publicId);
         } catch (deleteError) {
-          console.error('Error deleting from Cloudinary:', deleteError);
+          console.error('Error deleting from FTP:', deleteError);
         }
       }
       return res.status(result.status).json({ statusCode: result.status, error: result.error });
     }
 
-    // If the update was successful and a new image was uploaded, remove the old image from Cloudinary
+    // If the update was successful and a new image was uploaded, remove the old image from FTP
     if (req.file && existingCategory.category && existingCategory.category.image) {
       try {
         const publicId = extractPublicIdFromUrl(existingCategory.category.image);
-        await deleteFromCloudinary(publicId);
+        await deleteFromFTP(publicId);
       } catch (deleteError) {
-        console.error('Error deleting old image from Cloudinary:', deleteError);
+        console.error('Error deleting old image from FTP:', deleteError);
       }
     }
 
@@ -184,13 +184,13 @@ export async function deleteCategory(req, res) {
       return res.status(result.status).json({ statusCode: result.status, error: result.error });
     }
 
-    // If the deletion was successful and there was an image, remove the image from Cloudinary
+    // If the deletion was successful and there was an image, remove the image from FTP
     if (existingCategory.category && existingCategory.category.image) {
       try {
         const publicId = extractPublicIdFromUrl(existingCategory.category.image);
-        await deleteFromCloudinary(publicId);
+        await deleteFromFTP(publicId);
       } catch (deleteError) {
-        console.error('Error deleting image from Cloudinary:', deleteError);
+        console.error('Error deleting image from FTP:', deleteError);
       }
     }
 

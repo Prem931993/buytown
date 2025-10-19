@@ -19,4 +19,7 @@ router.delete('/remove', verifyUserDualAuth, userCartController.removeCartItem);
 // Clear entire cart
 router.delete('/clear', verifyUserDualAuth, userCartController.clearCart);
 
+// Delete expired cart items (admin only - no auth required for scheduled jobs)
+router.delete('/cleanup-expired', userCartController.deleteExpiredCartItems);
+
 export default router;

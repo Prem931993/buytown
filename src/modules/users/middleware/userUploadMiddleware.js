@@ -1,13 +1,13 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { uploadToCloudinary } from '../../../config/cloudinary.js';
+import { uploadToFTP } from '../../../config/ftp.js';
 
 // Configure multer storage based on environment
 let storage;
 
-if (process.env.CLOUDINARY_CLOUD_NAME) {
-  // Use memory storage for Cloudinary
+if (process.env.FTP_HOST) {
+  // Use memory storage for FTP
   storage = multer.memoryStorage();
 } else {
   // Use disk storage for local development
@@ -55,20 +55,20 @@ const upload = multer({
 // Use .any() to handle both text and file fields
 export const uploadUserFiles = upload.any();
 
-// Helper function to upload files to Cloudinary if configured
+// Helper function to upload files to FTP if configured
 export const processUserFiles = async (req) => {
   if (!req.files || req.files.length === 0) {
     return;
   }
 
-  if (process.env.CLOUDINARY_CLOUD_NAME) {
+  if (process.env.FTP_HOST) {
     for (const file of req.files) {
       try {
-        const result = await uploadToCloudinary(file.buffer, 'users', 'image');
-        // Store the Cloudinary URL in the request body
+        const result = await uploadToFTP(file.buffer, 'users', 'image');
+        // Store the FTP URL in the request body
         req.body[file.fieldname] = result.secure_url;
       } catch (error) {
-        console.error(`[USER_MIDDLEWARE] Cloudinary upload failed for ${file.fieldname}:`, error);
+        console.error(`[USER_MIDDLEWARE] FTP upload failed for ${file.fieldname}:`, error);
         throw error;
       }
     }

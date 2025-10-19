@@ -19,11 +19,11 @@ if (!fs.existsSync(categoriesDir)) {
   fs.mkdirSync(categoriesDir, { recursive: true });
 }
 
-// Configure multer storage based on environment (Cloudinary vs local)
+// Configure multer storage based on environment (FTP vs local)
 let storage;
 
-if (process.env.CLOUDINARY_CLOUD_NAME) {
-  // Use memory storage for Cloudinary uploads
+if (process.env.FTP_HOST) {
+  // Use memory storage for FTP uploads
   storage = multer.memoryStorage();
 } else {
   // Use disk storage for local development

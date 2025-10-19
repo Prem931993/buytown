@@ -1,5 +1,5 @@
 import * as services from '../services/delivery-person.services.js';
-import { uploadToCloudinary } from '../../../config/cloudinary.js';
+import { uploadToFTP } from '../../../config/ftp.js';
 
 export async function getDeliveryPersonProfile(req, res) {
   try {
@@ -80,10 +80,10 @@ export async function updateDeliveryPersonProfile(req, res) {
       let uploadResult;
       if (req.file.buffer) {
         // Multer memoryStorage
-        uploadResult = await uploadToCloudinary(req.file.buffer, 'delivery-person', resourceType);
+        uploadResult = await uploadToFTP(req.file.buffer, 'delivery-person', resourceType);
       } else if (req.file.path) {
         // Multer diskStorage
-        uploadResult = await uploadToCloudinary(req.file.path, 'delivery-person', resourceType);
+        uploadResult = await uploadToFTP(req.file.path, 'delivery-person', resourceType);
       }
 
       if (uploadResult?.secure_url) {

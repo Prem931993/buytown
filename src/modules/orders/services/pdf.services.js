@@ -180,6 +180,11 @@ function renderInvoiceHTML(order, title = 'TAX INVOICE') {
   let html = fs.readFileSync(templatePath, 'utf8');
 
   // Prepare data for template
+  const deliveryCharges = parseFloat(order.deliveryCharges) || 0;
+  const deliveryBase = deliveryCharges / 1.18;
+  const deliveryTax = deliveryCharges - deliveryBase;
+  const deliveryCgst = deliveryTax / 2;
+  const deliverySgst = deliveryTax / 2;
   const data = {
     order_number: order.order_number,
     customer_name: order.customer.name,
@@ -192,11 +197,21 @@ function renderInvoiceHTML(order, title = 'TAX INVOICE') {
       unit: 'Nos', // Assuming default unit
       price: item.price.toFixed(2),
       total_without_tax: item.total_without_tax.toFixed(2),
-      gst_rate: item.tax_rate
+      gst_rate: item.tax_rate,
+      cgst: (item.tax_amount / 2).toFixed(2),
+      sgst: (item.tax_amount / 2).toFixed(2),
+      tax_amount: item.tax_amount.toFixed(2)
     })),
     subtotal: order.subtotal.toFixed(2),
-    tax: order.tax.toFixed(2),
-    delivery_charges: order.deliveryCharges.toFixed(2),
+    cgst: (order.tax / 2).toFixed(2),
+    sgst: (order.tax / 2).toFixed(2),
+    delivery_charges: deliveryCharges.toFixed(2),
+    delivery_distance: order.deliveryDistance.toFixed(2),
+    delivery_vehicle_type: order.deliveryVehicleType,
+    delivery_vehicle_number: order.deliveryVehicleNumber,
+    delivery_base: deliveryBase.toFixed(2),
+    delivery_cgst: deliveryCgst.toFixed(2),
+    delivery_sgst: deliverySgst.toFixed(2),
     total: order.total.toFixed(2)
   };
 
@@ -208,23 +223,33 @@ function renderInvoiceHTML(order, title = 'TAX INVOICE') {
   html = html.replace(/{{place_of_supply}}/g, data.place_of_supply);
   html = html.replace(/{{date_of_bill}}/g, data.date_of_bill);
   html = html.replace(/{{subtotal}}/g, data.subtotal);
-  html = html.replace(/{{tax}}/g, data.tax);
+  html = html.replace(/{{cgst}}/g, data.cgst);
+  html = html.replace(/{{sgst}}/g, data.sgst);
   html = html.replace(/{{delivery_charges}}/g, data.delivery_charges);
+  html = html.replace(/{{delivery_distance}}/g, data.delivery_distance);
+  html = html.replace(/{{delivery_vehicle_type}}/g, data.delivery_vehicle_type);
+  html = html.replace(/{{delivery_vehicle_number}}/g, data.delivery_vehicle_number);
+  html = html.replace(/{{delivery_base}}/g, data.delivery_base);
+  html = html.replace(/{{delivery_cgst}}/g, data.delivery_cgst);
+  html = html.replace(/{{delivery_sgst}}/g, data.delivery_sgst);
   html = html.replace(/{{total}}/g, data.total);
   html = html.replace(/{{place_supply}}/g, data.total);
 
   // Handle items loop (simple replacement for now)
   let itemsHtml = '';
-  data.items.forEach((item, index) => {
+  data.items.forEach((item) => {
     itemsHtml += `
       <tr>
-        <td>${index + 1}</td>
         <td>${item.name}</td>
+        <td>${item.sku}</td>
         <td>${item.hsn_code}</td>
-        <td>${item.quantity} ${item.unit}</td>
+        <td>₹ ${item.price}</td>
+        <td>${item.quantity}</td>
         <td>${item.gst_rate}%</td>
-        <td>${item.price}</td>
-        <td>${item.total_without_tax}</td>
+        <td>₹ ${item.cgst}</td>
+        <td>₹ ${item.sgst}</td>
+        <td>₹ ${item.tax_amount}</td>
+        <td>₹ ${item.total_without_tax}</td>
       </tr>
     `;
   });

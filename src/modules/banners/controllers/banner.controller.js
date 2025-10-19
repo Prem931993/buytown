@@ -1,5 +1,5 @@
 import * as services from '../services/banner.services.js';
-import { deleteFromCloudinary, extractPublicIdFromUrl } from '../../../config/cloudinary.js';
+import { deleteFromFTP, extractPublicIdFromUrl, isFTPUrl } from '../../../config/ftp.js';
 
 // Get all banners
 export async function getAllBanners(req, res) {
@@ -80,7 +80,7 @@ export async function deleteBanner(req, res) {
   try {
     const { id } = req.params;
 
-    // Get the existing banner to check if there's an image to remove from Cloudinary
+    // Get the existing banner to check if there's an image to remove from FTP
     const existingBanner = await services.getBannerByIdService(id);
 
     const result = await services.deleteBannerService(id);
@@ -88,17 +88,17 @@ export async function deleteBanner(req, res) {
       return res.status(result.status).json({ statusCode: result.status, error: result.error });
     }
 
-    // If the deletion was successful and there was an image, remove the image from Cloudinary
+    // If the deletion was successful and there was an image, remove the image from FTP
     if (existingBanner.banner && existingBanner.banner.file_path) {
-      // Check if it's a Cloudinary URL (starts with https://res.cloudinary.com)
-      if (existingBanner.banner.file_path.startsWith('https://res.cloudinary.com')) {
+      // Check if it's an FTP URL
+      if (isFTPUrl(existingBanner.banner.file_path)) {
         const publicId = extractPublicIdFromUrl(existingBanner.banner.file_path);
         if (publicId) {
           try {
-            await deleteFromCloudinary(publicId, existingBanner.banner.media_type === 'video' ? 'video' : 'image');
-          } catch (cloudinaryError) {
-            console.error('Failed to delete from Cloudinary:', cloudinaryError);
-            // Continue with the response even if Cloudinary deletion fails
+            await deleteFromFTP(publicId, existingBanner.banner.media_type === 'video' ? 'video' : 'image');
+          } catch (ftpError) {
+            console.error('Failed to delete from FTP:', ftpError);
+            // Continue with the response even if FTP deletion fails
           }
         }
       }

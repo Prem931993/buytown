@@ -449,3 +449,47 @@ export async function releaseHeldQuantitiesForOrder(userId) {
 
   return true;
 }
+
+// Delete expired cart items based on expiry hours
+export async function deleteExpiredCartItems(expiryHours = 24) {
+  try {
+    // Calculate the cutoff date using proper INTERVAL syntax
+    const cutoffDate = knex.raw(`NOW() - INTERVAL '${expiryHours} hours'`);
+
+    // Get expired cart items with product details
+    const expiredItems = await knex('byt_cart_items as ci')
+      .select('ci.id', 'ci.product_id', 'ci.variation_id', 'ci.quantity', 'p.held_quantity')
+      .leftJoin('byt_products as p', 'ci.product_id', 'p.id')
+      .where('ci.created_at', '<', cutoffDate)
+      .where('p.deleted_at', null);
+
+    if (expiredItems.length === 0) {
+      return { deletedCount: 0, message: 'No expired cart items found' };
+    }
+
+    // Release held quantities for products
+    const productUpdates = [];
+    for (const item of expiredItems) {
+      if (item.held_quantity >= item.quantity) {
+        productUpdates.push(
+          knex('byt_products')
+            .where('id', item.product_id)
+            .decrement('held_quantity', item.quantity)
+        );
+      }
+    }
+
+    // Execute all product updates
+    await Promise.all(productUpdates);
+
+    // Delete the expired cart items
+    const deletedCount = await knex('byt_cart_items')
+      .whereIn('id', expiredItems.map(item => item.id))
+      .del();
+
+    return { deletedCount, message: `Deleted ${deletedCount} expired cart items` };
+  } catch (error) {
+    console.error('Error deleting expired cart items:', error);
+    throw error;
+  }
+}

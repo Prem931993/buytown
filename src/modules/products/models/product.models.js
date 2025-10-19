@@ -520,6 +520,29 @@ export async function updateProductVariations(productId, variations) {
 
 // Delete a single product image by ID
 export async function deleteProductImage(imageId) {
+  // First get the image record to get the path for FTP deletion
+  const image = await knex('byt_product_images')
+    .where({ id: imageId })
+    .select('image_path')
+    .first();
+
+  if (image) {
+    // Import FTP functions
+    const { deleteFromFTP, extractPublicIdFromUrl } = await import('../../../config/ftp.js');
+
+    try {
+      // Extract public ID from URL and delete from FTP
+      const publicId = extractPublicIdFromUrl(image.image_path);
+      if (publicId) {
+        await deleteFromFTP(publicId);
+      }
+    } catch (ftpError) {
+      console.error('Failed to delete from FTP:', ftpError);
+      // Continue with database deletion even if FTP deletion fails
+    }
+  }
+
+  // Delete from database
   return knex('byt_product_images').where({ id: imageId }).del();
 }
 

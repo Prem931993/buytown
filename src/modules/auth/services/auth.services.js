@@ -5,7 +5,7 @@ import logger from '../../../config/logger.js';
 import knex from '../../../config/db.js';
 import * as smsServices from './sms.services.js';
 import * as smsModels from '../models/sms.models.js';
-import { uploadToCloudinary } from '../../../config/cloudinary.js';
+import { uploadToFTP } from '../../../config/ftp.js';
 
 export async function registerService(data) {
   const error = validators.validateRegisterInput(data);
@@ -70,14 +70,14 @@ export async function registerService(data) {
 
   const role_id = roleMapping[role] || 3; // Default to user role
 
-  // Handle file uploads to Cloudinary
+  // Handle file uploads to FTP
   let profilePhotoUrl = null;
   let licenseUrl = null;
 
   try {
     // Upload profile photo if present
     if (profile_photo && profile_photo.buffer) {
-      const uploadResult = await uploadToCloudinary(
+      const uploadResult = await uploadToFTP(
         profile_photo.buffer,
         'users/profile_photos',
         'image'
@@ -87,7 +87,7 @@ export async function registerService(data) {
 
     // Upload license if present
     if (license && license.buffer) {
-      const uploadResult = await uploadToCloudinary(
+      const uploadResult = await uploadToFTP(
         license.buffer,
         'users/licenses',
         'auto'
@@ -95,7 +95,7 @@ export async function registerService(data) {
       licenseUrl = uploadResult.secure_url;
     }
   } catch (uploadError) {
-    console.error('Error uploading files to Cloudinary:', uploadError);
+    console.error('Error uploading files to FTP:', uploadError);
     return { error: 'Failed to upload files. Please try again.', status: 500 };
   }
 

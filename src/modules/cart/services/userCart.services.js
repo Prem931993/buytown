@@ -1,4 +1,5 @@
 import * as cartModels from '../models/cart.models.js';
+import * as generalSettingsModels from '../../general-settings/models/generalSettings.models.js';
 
 export async function addToCartService(userId, cartData) {
   try {
@@ -75,5 +76,20 @@ export async function clearCartService(userId) {
     return { message: 'Cart cleared successfully', status: 200 };
   } catch (error) {
     return { error: error.message, status: 400 };
+  }
+}
+
+// Service to delete expired cart items
+export async function deleteExpiredCartItemsService() {
+  try {
+    // Get abandoned cart expiry hours from general settings
+    const settings = await generalSettingsModels.getSettings();
+    const expiryHours = settings?.abandoned_cart_expiry_hours || 24; // Default to 24 hours
+
+    const result = await cartModels.deleteExpiredCartItems(expiryHours);
+    return { ...result, status: 200 };
+  } catch (error) {
+    console.error('Error in deleteExpiredCartItemsService:', error);
+    return { error: error.message, status: 500 };
   }
 }

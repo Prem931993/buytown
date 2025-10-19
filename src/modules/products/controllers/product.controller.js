@@ -6,13 +6,13 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import fs from 'fs';
-import { uploadToCloudinary, deleteFromCloudinary, extractPublicIdFromUrl } from '../../../config/cloudinary.js';
+import { uploadToFTP, deleteFromFTP, extractPublicIdFromUrl } from '../../../config/ftp.js';
 
 // Get the directory name
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Configure multer storage for memory (for Cloudinary upload)
+// Configure multer storage for memory (for FTP upload)
 const productStorage = multer.memoryStorage();
 
 // Configure multer storage for import uploads (to memory)
@@ -122,7 +122,7 @@ export async function createProduct(req, res) {
     let images = [];
     if (req.files && req.files.length > 0) {
       try {
-        // Upload images to Cloudinary
+        // Upload images to FTP
         for (let i = 0; i < req.files.length; i++) {
           const file = req.files[i];
           let fileData;
@@ -136,15 +136,15 @@ export async function createProduct(req, res) {
             throw new Error('No file data available');
           }
 
-          const cloudinaryResult = await uploadToCloudinary(fileData, 'products');
+          const ftpResult = await uploadToFTP(fileData, 'products');
           images.push({
-            path: cloudinaryResult.secure_url,
+            path: ftpResult.secure_url,
             sort_order: i,
             is_primary: i === 0
           });
         }
       } catch (uploadError) {
-        console.error('Error uploading to Cloudinary:', uploadError);
+        console.error('Error uploading to FTP:', uploadError);
         return res.status(500).json({ statusCode: 500, error: 'Failed to upload images' });
       }
     }
@@ -154,14 +154,13 @@ export async function createProduct(req, res) {
 
     const result = await services.createProductService(productData, images, variations, childProductIds);
     if (result.error) {
-      // If there's an error and files were uploaded to Cloudinary, delete them
+      // If there's an error and files were uploaded to FTP, delete them
       if (images.length > 0) {
         images.forEach(async (image) => {
           try {
-            const publicId = extractPublicIdFromUrl(image.path);
-            await deleteFromCloudinary(publicId);
+            await deleteFromFTP(image.path);
           } catch (deleteError) {
-            console.error('Error deleting from Cloudinary:', deleteError);
+            console.error('Error deleting from FTP:', deleteError);
           }
         });
       }
@@ -290,7 +289,7 @@ export async function updateProduct(req, res) {
     let images = null;
     if (req.files && req.files.length > 0) {
       try {
-        // Upload images to Cloudinary
+        // Upload images to FTP
         images = [];
         for (let i = 0; i < req.files.length; i++) {
           const file = req.files[i];
@@ -305,15 +304,15 @@ export async function updateProduct(req, res) {
             throw new Error('No file data available');
           }
 
-          const cloudinaryResult = await uploadToCloudinary(fileData, 'products');
+          const ftpResult = await uploadToFTP(fileData, 'products');
           images.push({
-            path: cloudinaryResult.secure_url,
+            path: ftpResult.secure_url,
             sort_order: i,
             is_primary: i === 0
           });
         }
       } catch (uploadError) {
-        console.error('Error uploading to Cloudinary:', uploadError);
+        console.error('Error uploading to FTP:', uploadError);
         return res.status(500).json({ statusCode: 500, error: 'Failed to upload images' });
       }
     }
@@ -323,14 +322,13 @@ export async function updateProduct(req, res) {
 
     const result = await services.updateProductService(id, productData, images, variations, imagesToRemove, childProductIds);
     if (result.error) {
-      // If there's an error and files were uploaded to Cloudinary, delete them
+      // If there's an error and files were uploaded to FTP, delete them
       if (images && images.length > 0) {
         images.forEach(async (image) => {
           try {
-            const publicId = extractPublicIdFromUrl(image.path);
-            await deleteFromCloudinary(publicId);
+            await deleteFromFTP(image.path);
           } catch (deleteError) {
-            console.error('Error deleting from Cloudinary:', deleteError);
+            console.error('Error deleting from FTP:', deleteError);
           }
         });
       }
@@ -516,18 +514,113 @@ export async function importProducts(req, res) {
   }
 }
 
+// Update product images (add, remove, reorder, set primary)
+export async function updateProductImages(req, res) {
+  try {
+    const { id } = req.params;
+    const productData = req.body;
+
+    // Extract images to remove if provided
+    let imagesToRemove = null;
+    if (productData.images_to_remove) {
+      // Handle JSON string, array, and comma-separated string formats
+      if (typeof productData.images_to_remove === 'string') {
+        // Try to parse as JSON first (for FormData with JSON.stringify)
+        try {
+          imagesToRemove = JSON.parse(productData.images_to_remove);
+          if (!Array.isArray(imagesToRemove)) {
+            imagesToRemove = null;
+          } else {
+            // Convert to integers
+            imagesToRemove = imagesToRemove.map(id => parseInt(id)).filter(id => !isNaN(id));
+          }
+        } catch (e) {
+          // If not JSON, try comma-separated string
+          imagesToRemove = productData.images_to_remove.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+        }
+      } else if (Array.isArray(productData.images_to_remove)) {
+        // Already an array, convert to integers
+        imagesToRemove = productData.images_to_remove.map(id => parseInt(id)).filter(id => !isNaN(id));
+      }
+    }
+
+    // Handle images if uploaded
+    let images = null;
+    if (req.files && req.files.length > 0) {
+      try {
+        // Upload images to FTP
+        images = [];
+        for (let i = 0; i < req.files.length; i++) {
+          const file = req.files[i];
+          let fileData;
+          if (file.buffer) {
+            // Memory storage - use buffer
+            fileData = file.buffer;
+          } else if (file.path) {
+            // Disk storage - use file path
+            fileData = file.path;
+          } else {
+            throw new Error('No file data available');
+          }
+
+          const ftpResult = await uploadToFTP(fileData, 'products');
+          images.push({
+            path: ftpResult.secure_url,
+            sort_order: i,
+            is_primary: i === 0
+          });
+        }
+      } catch (uploadError) {
+        console.error('Error uploading to FTP:', uploadError);
+        return res.status(500).json({ statusCode: 500, error: 'Failed to upload images' });
+      }
+    }
+
+    // Handle image reordering and primary setting
+    let imageUpdates = null;
+    if (productData.image_updates) {
+      try {
+        imageUpdates = JSON.parse(productData.image_updates);
+      } catch (e) {
+        imageUpdates = null;
+      }
+    }
+
+    // Call the service to update images
+    const result = await services.updateProductImagesService(id, images, imagesToRemove, imageUpdates);
+
+    if (result.error) {
+      // If there's an error and files were uploaded to FTP, delete them
+      if (images && images.length > 0) {
+        images.forEach(async (image) => {
+          try {
+            await deleteFromFTP(image.path);
+          } catch (deleteError) {
+            console.error('Error deleting from FTP:', deleteError);
+          }
+        });
+      }
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+
+    res.status(result.status).json({ statusCode: result.status, product: result.product });
+  } catch (error) {
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
+
 // Delete a single product image by ID
 export async function deleteProductImage(req, res) {
   try {
     const { imageId } = req.params;
-    
+
     // Call the service to delete the image
     const result = await services.deleteProductImageService(imageId);
-    
+
     if (result.error) {
       return res.status(result.status).json({ statusCode: result.status, error: result.error });
     }
-    
+
     res.status(result.status).json({ statusCode: result.status, message: result.message });
   } catch (error) {
     res.status(500).json({ statusCode: 500, error: 'Internal server error' });

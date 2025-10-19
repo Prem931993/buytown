@@ -12,8 +12,49 @@ export async function getAllProductsService({ page = 1, limit = 10, search = '',
     const totalCount = await models.getProductsCount({ search, categoryIds, brandId });
     const totalPages = Math.ceil(totalCount / limit);
 
+    // Process products to include images
+    const processedProducts = await Promise.all(products.map(async (product) => {
+      // Get product images
+      const images = await models.getProductImages(product.id);
+
+      return {
+        id: product.id,
+        name: product.name,
+        sku_code: product.sku_code,
+        description: product.description,
+        price: product.price,
+        selling_price: product.selling_price,
+        gst: product.gst,
+        hsn_code: product.hsn_code,
+        status: product.status,
+        category_id: product.category_id,
+        subcategory_id: product.subcategory_id,
+        brand_id: product.brand_id,
+        variation_id: product.variation_id,
+        product_type: product.product_type,
+        parent_product_id: product.parent_product_id,
+        color: product.color,
+        size_dimension: product.size_dimension,
+        created_at: product.created_at,
+        updated_at: product.updated_at,
+        deleted_at: product.deleted_at,
+        stock: product.stock,
+        category_name: product.category_name,
+        subcategory_name: product.subcategory_name,
+        brand_name: product.brand_name,
+        variation_label: product.variation_label,
+        variation_value: product.variation_value,
+        images: images.map(img => ({
+          id: img.id,
+          path: img.image_path,
+          sort_order: img.sort_order,
+          is_primary: img.is_primary
+        }))
+      };
+    }));
+
     return {
-      products,
+      products: processedProducts,
       pagination: {
         currentPage: page,
         totalPages,
@@ -353,25 +394,20 @@ export async function deleteProductService(id) {
     // Delete the product (soft delete)
     await models.deleteProduct(id);
 
-    // Delete associated images from filesystem
+    // Delete associated images from FTP and database
     const productImages = await knex('byt_product_images')
       .where('product_id', id)
-      .select('image_path');
+      .select('id', 'image_path');
 
-    // Delete image files from filesystem
+    // Delete image files from FTP
     for (const image of productImages) {
       try {
-        const imagePath = path.join(process.cwd(), 'frontend/public', image.image_path);
-        if (fs.existsSync(imagePath)) {
-          fs.unlinkSync(imagePath);
-        }
+        // Use the deleteProductImage function which handles FTP deletion
+        await models.deleteProductImage(image.id);
       } catch (err) {
         console.error('Error deleting image file:', err);
       }
     }
-
-    // Delete image records from database
-    await knex('byt_product_images').where('product_id', id).del();
 
     // Delete variation records from database
     await knex('byt_product_variations').where('product_id', id).del();
@@ -413,12 +449,53 @@ export async function getProductVariationsService(productId) {
   }
 }
 
+// Update product images (add, remove, reorder, set primary)
+export async function updateProductImagesService(id, images = null, imagesToRemove = null, imageUpdates = null) {
+  try {
+    // Check if product exists
+    const existingProduct = await models.getProductById(id);
+    if (!existingProduct) {
+      return { error: 'Product not found', status: 404 };
+    }
+
+    // Add new images if provided
+    if (images && images.length > 0) {
+      await models.addProductImages(id, images);
+    }
+
+    // Delete images marked for removal
+    if (imagesToRemove && imagesToRemove.length > 0) {
+      for (const imageId of imagesToRemove) {
+        await models.deleteProductImage(imageId);
+      }
+    }
+
+    // Update image order and primary status if provided
+    if (imageUpdates && imageUpdates.length > 0) {
+      for (const update of imageUpdates) {
+        await knex('byt_product_images')
+          .where('id', update.id)
+          .update({
+            sort_order: update.sort_order,
+            is_primary: update.is_primary,
+            updated_at: knex.fn.now()
+          });
+      }
+    }
+
+    // Return the complete product with updated images
+    return await getProductByIdService(id);
+  } catch (error) {
+    return { error: error.message, status: 500 };
+  }
+}
+
 // Delete a single product image by ID
 export async function deleteProductImageService(imageId) {
   try {
     // Delete the image record from database
     await models.deleteProductImage(imageId);
-    
+
     return { message: 'Image deleted successfully', status: 200 };
   } catch (error) {
     return { error: error.message, status: 500 };

@@ -59,3 +59,20 @@ export async function deleteVehicle(req, res) {
     res.status(500).json({ error: 'Failed to delete vehicle' });
   }
 }
+
+export async function calculateDeliveryCharge(req, res) {
+  try {
+    const { vehicleId, distanceKm } = req.body;
+
+    if (!vehicleId || !distanceKm) {
+      return res.status(400).json({
+        error: 'vehicleId and distanceKm are required'
+      });
+    }
+
+    const chargeDetails = await vehicleModel.calculateDeliveryCharge(vehicleId, parseFloat(distanceKm));
+    res.json(chargeDetails);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}

@@ -24,7 +24,7 @@ import logoRoutes from './src/modules/logos/routes/logo.routes.js';
 import userRoutes from './src/modules/users/routes/user.routes.js';
 import userCartRoutes from './src/modules/cart/routes/userCart.routes.js';
 import userCheckoutRoutes from './src/modules/checkout/routes/userCheckout.routes.js';
-import { getUploadMiddleware, uploadToCloudinary } from './src/config/cloudinary.js';
+import { getUploadMiddleware, uploadToFTP } from './src/config/ftp.js';
 import configRoutes from './src/modules/config/routes/config.routes.js';
 import orderRoutes from './src/modules/orders/routes/order.routes.js';
 import dashboardRoutes from './src/modules/dashboard/routes/dashboard.routes.js';
@@ -39,10 +39,11 @@ import userNotificationRoutes from './src/modules/notifications/routes/userNotif
 import userWishlistRoutes from './src/modules/wishlist/routes/userWishlist.routes.js';
 import reportsRoutes from './src/modules/reports/routes/reports.routes.js'
 import paymentRoutes from './src/modules/payments/routes/payment.routes.js';
+import { initializeCronJobs } from './cron.js';
 
 const app = express();
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
+  origin: '*',
   credentials: true
 }));
 
@@ -74,7 +75,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Get upload middleware based on environment
 const upload = getUploadMiddleware();
 
-// File upload endpoint with Cloudinary support
+// File upload endpoint with FTP support
 app.post('/api/v1/upload/:module', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
@@ -82,10 +83,10 @@ app.post('/api/v1/upload/:module', upload.single('file'), async (req, res) => {
     }
 
     let filePath;
-    
-    if (process.env.CLOUDINARY_CLOUD_NAME) {
-      // Upload to Cloudinary when configured
-      const result = await uploadToCloudinary(
+
+    if (process.env.FTP_HOST) {
+      // Upload to FTP when configured
+      const result = await uploadToFTP(
         req.file.buffer,
         req.params.module,
         req.file.mimetype.startsWith('video/') ? 'video' : 'image'
@@ -93,13 +94,13 @@ app.post('/api/v1/upload/:module', upload.single('file'), async (req, res) => {
 
       filePath = result.secure_url;
     } else {
-      // Use local storage when Cloudinary is not configured
+      // Use local storage when FTP is not configured
       filePath = `/${req.params.module}/${req.file.filename}`;
     }
 
-    res.status(200).json({ 
-      message: 'File uploaded successfully', 
-      filePath: filePath 
+    res.status(200).json({
+      message: 'File uploaded successfully',
+      filePath: filePath
     });
   } catch (error) {
     console.error('Upload error:', error);
@@ -107,9 +108,6 @@ app.post('/api/v1/upload/:module', upload.single('file'), async (req, res) => {
   }
 });
 
-app.get('/', (req, res) => {
-  res.send('🚀 BuyTown API is live on Railway!');
-});
 
 // const apiLimiter = rateLimit({
 //   windowMs: 60 * 60 * 1000, // 1 hour
@@ -162,4 +160,9 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on http://0.0.0.0:${PORT}`);
+
+  // Initialize cron jobs
+  initializeCronJobs();
+});

@@ -133,3 +133,23 @@ export async function clearCart(req, res) {
     res.status(500).json({ statusCode: 500, error: 'Internal server error' });
   }
 }
+
+// Controller for deleting expired cart items
+export async function deleteExpiredCartItems(req, res) {
+  try {
+    const result = await services.deleteExpiredCartItemsService();
+
+    if (result.error) {
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+
+    res.status(result.status).json({
+      statusCode: result.status,
+      message: result.message,
+      deleted_count: result.deletedCount
+    });
+  } catch (error) {
+    console.error('Error in deleteExpiredCartItems:', error);
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}

@@ -19,11 +19,11 @@ if (!fs.existsSync(productsDir)) {
   fs.mkdirSync(productsDir, { recursive: true });
 }
 
-// Configure multer storage based on environment (Cloudinary vs local)
+// Configure multer storage based on environment (FTP vs local)
 let productStorage;
 
-if (process.env.CLOUDINARY_CLOUD_NAME) {
-  // Use memory storage for Cloudinary uploads
+if (process.env.FTP_HOST) {
+  // Use memory storage for FTP uploads
   productStorage = multer.memoryStorage();
 } else {
   // Use disk storage for local development
@@ -58,6 +58,7 @@ router.get('/:id', verifyDualAuth, productController.getProductById);
 router.post('/', verifyDualAuth, upload.array('images', 10), productController.createProduct);
 router.post('/import', verifyDualAuth, importUpload.single('file'), productController.importProducts);
 router.put('/:id', verifyDualAuth, upload.array('images', 10), productController.updateProduct);
+router.put('/:id/images', verifyDualAuth, upload.array('images', 10), productController.updateProductImages);
 router.delete('/:id', verifyDualAuth, productController.deleteProduct);
 router.delete('/image/:imageId', verifyDualAuth, productController.deleteProductImage);
 

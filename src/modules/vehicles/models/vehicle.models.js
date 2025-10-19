@@ -62,3 +62,33 @@ export async function getVehiclesWithDeliveryPersonCount() {
 
   return vehicles;
 }
+
+// Calculate delivery charges based on vehicle configuration and distance
+export async function calculateDeliveryCharge(vehicleId, distanceKm) {
+  const vehicle = await knex(TABLE_NAME)
+    .where({ id: vehicleId, is_active: true })
+    .select('base_charge', 'max_distance_km', 'additional_charge_per_km')
+    .first();
+
+  if (!vehicle) {
+    throw new Error('Vehicle not found');
+  }
+
+  const { base_charge, max_distance_km, additional_charge_per_km } = vehicle;
+
+  let totalCharge = parseFloat(base_charge || 0);
+
+  if (distanceKm > max_distance_km) {
+    const extraDistance = distanceKm - max_distance_km;
+    const extraCharge = extraDistance * parseFloat(additional_charge_per_km || 0);
+    totalCharge += extraCharge;
+  }
+
+  return {
+    base_charge: parseFloat(base_charge || 0),
+    max_distance_km: parseInt(max_distance_km || 5),
+    additional_charge_per_km: parseFloat(additional_charge_per_km || 0),
+    distance_km: distanceKm,
+    total_charge: totalCharge
+  };
+}

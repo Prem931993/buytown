@@ -194,41 +194,78 @@
 
     <div class="supply-info">
       <strong>Place of Supply:</strong> {{place_of_supply}}<br>
-      <strong>Date of Bill:</strong> {{date_of_bill}}
+      <strong>Date of Bill:</strong> {{date_of_bill}}<br>
+      <strong>Vehicle Type:</strong> {{delivery_vehicle_type}}
     </div>
 
-    <!-- ITEMS -->
+    <!-- ORDER ITEMS -->
     <table>
       <thead>
         <tr>
-          <th>S.No</th>
-          <th>Description</th>
-          <th>HSN/SAC</th>
-          <th>Qty</th>
-          <th>GST %</th>
-          <th>Rate</th>
-          <th>Amount</th>
+          <th>Product</th>
+          <th>SKU</th>
+          <th>HSN Code</th>
+          <th>Price</th>
+          <th>Quantity</th>
+          <th>Tax Rate</th>
+          <th>CGST</th>
+          <th>SGST</th>
+          <th>Tax Amount</th>
+          <th>Total without Tax</th>
         </tr>
       </thead>
       <tbody>
         {{#each items}}
         <tr>
-          <td>{{inc @index}}</td>
           <td>{{name}}</td>
+          <td>{{sku}}</td>
           <td>{{hsn_code}}</td>
-          <td>{{quantity}} {{unit}}</td>
-          <td>{{gst_rate}}%</td>
           <td>₹ {{price}}</td>
+          <td>{{quantity}}</td>
+          <td>{{gst_rate}}%</td>
+          <td>₹ {{cgst}}</td>
+          <td>₹ {{sgst}}</td>
+          <td>₹ {{tax_amount}}</td>
           <td>₹ {{total_without_tax}}</td>
         </tr>
         {{/each}}
       </tbody>
     </table>
 
+    <!-- DELIVERY CHARGES BREAKDOWN -->
+    <h3 style="margin-top: 30px; margin-bottom: 10px; color: var(--primary);">Delivery Charges Breakdown</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th>Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Delivery Charges (Base)</td>
+          <td>₹ {{delivery_base}}</td>
+        </tr>
+        <tr>
+          <td>CGST (9%)</td>
+          <td>₹ {{delivery_cgst}}</td>
+        </tr>
+        <tr>
+          <td>SGST (9%)</td>
+          <td>₹ {{delivery_sgst}}</td>
+        </tr>
+        <tr>
+          <td style="font-weight: 600;">Total Delivery Charges</td>
+          <td style="font-weight: 600;">₹ {{delivery_charges}}</td>
+        </tr>
+      </tbody>
+    </table>
+
     <!-- TOTALS -->
     <table class="totals">
       <tr><td>Sub Total</td><td>₹ {{subtotal}}</td></tr>
-      <tr><td>Tax</td><td>₹ {{tax}}</td></tr>
+      <tr><td>CGST</td><td>₹ {{cgst}}</td></tr>
+      <tr><td>SGST</td><td>₹ {{sgst}}</td></tr>
       <tr><td>Delivery Charges</td><td>₹ {{delivery_charges}}</td></tr>
       <tr><td>Total</td><td>₹ {{total}}</td></tr>
     </table>

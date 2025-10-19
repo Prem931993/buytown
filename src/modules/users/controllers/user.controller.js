@@ -36,7 +36,7 @@ export const createUser = async (req, res) => {
         // Handle both JSON and form data
         let userData = req.body && typeof req.body === 'object' ? req.body : {};
 
-        // Process files if present (upload to Cloudinary or handle local storage)
+        // Process files if present (upload to FTP or handle local storage)
         await processUserFiles(req);
 
         // Handle vehicle_ids from FormData (array format)
@@ -88,7 +88,7 @@ export const updateUser = async (req, res) => {
         // Handle both JSON and multipart form data
         let userData = req.body;
 
-        // Process files if present (upload to Cloudinary or handle local storage)
+        // Process files if present (upload to FTP or handle local storage)
         await processUserFiles(req);
 
         // Handle vehicle_ids from FormData (array format)
