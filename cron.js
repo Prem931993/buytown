@@ -7,13 +7,13 @@ export function initializeCronJobs() {
   console.log('Initializing cron jobs...');
 
   // Schedule cart cleanup to run every minute
-  cron.schedule('0 * * * *', () => {
+  cron.schedule('0 0 * * *', () => {
     console.log('Running scheduled cart cleanup...');
     scheduledCartCleanup();
   });
 
   // Schedule pending notifications processing to run every minute
-  cron.schedule('0 * * * *', () => {
+  cron.schedule('0 0 * * *', () => {
     console.log('Running scheduled pending notifications processing...');
     processPendingNotifications()
       .then(result => {
@@ -25,7 +25,7 @@ export function initializeCronJobs() {
   });
 
   // Schedule low stock notifications to run every minute
-  cron.schedule('0 * * * *', () => {
+  cron.schedule('0 0 * * *', () => {
     console.log('Running scheduled low stock notifications check...');
     checkAndNotifyLowStockProducts()
       .then(result => {
