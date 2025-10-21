@@ -13,7 +13,12 @@ export function up(knex) {
  * @returns { Promise<void> }
  */
 export function down(knex) {
-  return knex.schema.alterTable('byt_email_configurations', function(table) {
-    table.dropColumn('config_type');
+  // Check if column exists before dropping
+  return knex.schema.hasColumn('byt_email_configurations', 'config_type').then(exists => {
+    if (exists) {
+      return knex.schema.alterTable('byt_email_configurations', function(table) {
+        table.dropColumn('config_type');
+      });
+    }
   });
 }

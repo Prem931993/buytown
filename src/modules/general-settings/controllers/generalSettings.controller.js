@@ -5,9 +5,12 @@ import * as deliveryModel from '../../vehicles/models/delivery.models.js';
 
 export const getSettings = async (req, res) => {
   try {
-    const settings = await generalSettingsService.getSettings();
+    let settings = await generalSettingsService.getSettings();
+    if (!settings) {
+      settings = {};
+    }
     // Parse selected_categories if it exists
-    if (settings && settings.selected_categories) {
+    if (settings.selected_categories) {
       try {
         // Handle different data formats
         if (typeof settings.selected_categories === 'string') {
@@ -28,7 +31,7 @@ export const getSettings = async (req, res) => {
     }
     res.status(200).json({
       success: true,
-      data: settings || {}
+      data: settings
     });
   } catch (error) {
     res.status(500).json({
@@ -43,6 +46,34 @@ export const getSettings = async (req, res) => {
 export const updateSettings = async (req, res) => {
   try {
     const settingsData = req.body;
+
+    // Validate required fields
+    if (!settingsData) {
+      return res.status(400).json({
+        success: false,
+        error: 'Settings data is required'
+      });
+    }
+
+    // Validate selected_categories if provided
+    if (settingsData.selected_categories !== undefined) {
+      if (!Array.isArray(settingsData.selected_categories)) {
+        return res.status(400).json({
+          success: false,
+          error: 'selected_categories must be an array'
+        });
+      }
+      // Ensure all items in the array are valid category IDs (numbers)
+      for (const cat of settingsData.selected_categories) {
+        if (typeof cat !== 'number' || cat <= 0) {
+          return res.status(400).json({
+            success: false,
+            error: 'selected_categories must contain valid category IDs (positive numbers)'
+          });
+        }
+      }
+    }
+
     const settings = await generalSettingsService.updateSettings(settingsData);
     res.status(200).json({
       success: true,
@@ -59,7 +90,7 @@ export const updateSettings = async (req, res) => {
 
 export const getGeneralSettingsWithLogos = async (req, res) => {
   try {
-    const settings = await generalSettingsService.getSettings();
+    const settings = await generalSettingsService.getSettings() || {};
     const logosResult = await logoService.getAllLogosService();
     const deliverySettings = await deliveryModel.getDeliverySettings();
 

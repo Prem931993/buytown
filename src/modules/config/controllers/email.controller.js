@@ -86,23 +86,36 @@ export async function createEmailConfiguration(req, res) {
     }
   }
 
-  const result = await services.createEmailConfiguration({
+  const configData = {
     config_type,
-    smtp_host,
-    smtp_port,
-    smtp_user,
-    smtp_password,
-    smtp_secure: smtp_secure || false,
     from_email,
     from_name,
-    mail_user,
-    mail_client_id,
-    mail_client_secret,
-    mail_refresh_token,
-    mail_access_token,
+    smtp_secure: smtp_secure || false,
     token_expires_at: token_expires_at && token_expires_at !== '' ? token_expires_at : null,
-    sendgrid_api_key
-  });
+  };
+
+  // Add fields based on config_type
+  if (config_type === 'smtp' || config_type === 'gmail_app_password') {
+    configData.smtp_host = smtp_host;
+    configData.smtp_port = parseInt(smtp_port) || null;
+    configData.smtp_user = smtp_user;
+    configData.smtp_password = smtp_password;
+  } else if (config_type === 'oauth2') {
+    configData.mail_user = mail_user;
+    configData.mail_client_id = mail_client_id;
+    configData.mail_client_secret = mail_client_secret;
+    configData.mail_refresh_token = mail_refresh_token;
+    configData.mail_access_token = mail_access_token;
+  } else if (config_type === 'sendgrid') {
+    configData.sendgrid_api_key = sendgrid_api_key;
+    // Set SMTP fields to null for sendgrid
+    configData.smtp_host = null;
+    configData.smtp_port = null;
+    configData.smtp_user = null;
+    configData.smtp_password = null;
+  }
+
+  const result = await services.createEmailConfiguration(configData);
 
   if (!result.success) {
     return res.status(500).json({

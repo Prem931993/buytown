@@ -7,8 +7,12 @@ export const getSettings = async () => {
 export const updateSettings = async (settingsData) => {
   // Validate required fields if needed
   // Handle selected_categories array to store in DB as JSON or string
-  if (settingsData.selected_categories && Array.isArray(settingsData.selected_categories)) {
-    settingsData.selected_categories = JSON.stringify(settingsData.selected_categories);
+  if (settingsData.selected_categories !== undefined) {
+    if (Array.isArray(settingsData.selected_categories)) {
+      settingsData.selected_categories = JSON.stringify(settingsData.selected_categories);
+    } else {
+      settingsData.selected_categories = JSON.stringify([]);
+    }
   }
   return await generalSettingsModel.upsertSettings(settingsData);
 };

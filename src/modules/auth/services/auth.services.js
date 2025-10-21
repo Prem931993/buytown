@@ -6,6 +6,7 @@ import knex from '../../../config/db.js';
 import * as smsServices from './sms.services.js';
 import * as smsModels from '../models/sms.models.js';
 import { uploadToFTP } from '../../../config/ftp.js';
+import * as userModels from '../../users/models/user.models.js';
 
 export async function registerService(data) {
   const error = validators.validateRegisterInput(data);
@@ -110,10 +111,15 @@ export async function registerService(data) {
     profile_photo: profilePhotoUrl,
     license: licenseUrl,
     role_id,
-    status: status === 'active'
+    status: status === 'active' ? 1 : 2
   };
 
   const [user] = await models.createUser(userData);
+
+  // Handle vehicle assignments if provided
+  if (data.vehicle_ids && Array.isArray(data.vehicle_ids) && data.vehicle_ids.length > 0) {
+    await userModels.assignVehiclesToUser(user.id, data.vehicle_ids, data.vehicle_numbers);
+  }
 
   return { user, status: 201 };
 }

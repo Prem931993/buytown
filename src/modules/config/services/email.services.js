@@ -26,7 +26,6 @@ export async function getOAuth2AccessToken(clientId, clientSecret, refreshToken)
 export async function createEmailTransporter(config) {
   try {
     let transporter;
-
     if (config.config_type === 'oauth2') {
       // OAuth2 configuration
       if (!config.mail_client_id || !config.mail_client_secret || !config.mail_refresh_token) {
@@ -83,6 +82,16 @@ export async function createEmailTransporter(config) {
           rejectUnauthorized: false
         }
       });
+    } else if (config.config_type === 'sendgrid') {
+      // SendGrid configuration
+      if (!config.sendgrid_api_key) {
+        throw new Error('SendGrid configuration requires API key');
+      }
+
+      const sgMail = (await import('@sendgrid/mail')).default;
+      sgMail.setApiKey(config.sendgrid_api_key);
+      // For SendGrid, we return the sgMail object instead of a transporter
+      return { success: true, transporter: sgMail, isSendGrid: true };
     } else {
       throw new Error('Invalid email configuration: Unsupported config_type');
     }
@@ -101,12 +110,27 @@ export async function sendEmail(config, emailOptions) {
       return transporterResult;
     }
 
-    const info = await transporterResult.transporter.sendMail({
-      from: config.from_email || emailOptions.from,
-      ...emailOptions
-    });
+    if (transporterResult.isSendGrid) {
+      // SendGrid specific sending
+      const msg = {
+        to: emailOptions.to,
+        from: config.from_email || emailOptions.from,
+        subject: emailOptions.subject,
+        html: emailOptions.html,
+        text: emailOptions.text,
+      };
 
-    return { success: true, messageId: info.messageId, info };
+      const result = await transporterResult.transporter.send(msg);
+      return { success: true, messageId: result[0]?.headers?.['x-message-id'] || 'sendgrid-sent', info: result };
+    } else {
+      // Nodemailer sending
+      const info = await transporterResult.transporter.sendMail({
+        from: config.from_email || emailOptions.from,
+        ...emailOptions
+      });
+
+      return { success: true, messageId: info.messageId, info };
+    }
   } catch (error) {
     return { success: false, error: error.message };
   }

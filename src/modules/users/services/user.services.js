@@ -127,7 +127,7 @@ export const createUser = async (userData) => {
 
     // Handle vehicle assignments if provided
     if (userData.vehicle_ids && Array.isArray(userData.vehicle_ids) && userData.vehicle_ids.length > 0) {
-        await userModel.assignVehiclesToUser(userId, userData.vehicle_ids);
+        await userModel.assignVehiclesToUser(userId, userData.vehicle_ids, userData.vehicle_numbers);
     }
 
     // Get the created user and transform the response

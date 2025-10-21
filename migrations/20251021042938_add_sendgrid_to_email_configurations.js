@@ -3,13 +3,17 @@
  * @returns { Promise<void> }
  */
 export async function up(knex) {
-  // Drop the existing enum column and recreate it with the new values
+  // Add sendgrid_api_key column
   await knex.schema.alterTable('byt_email_configurations', function(table) {
-    table.dropColumn('config_type');
-  });
-  await knex.schema.alterTable('byt_email_configurations', function(table) {
-    table.enu('config_type', ['smtp', 'gmail_app_password', 'oauth2', 'sendgrid']).defaultTo('smtp').notNullable();
     table.string('sendgrid_api_key').nullable();
+  });
+
+  // Make SMTP fields nullable for sendgrid configurations
+  await knex.schema.alterTable('byt_email_configurations', function(table) {
+    table.string('smtp_host').nullable().alter();
+    table.integer('smtp_port').nullable().alter();
+    table.string('smtp_user').nullable().alter();
+    table.string('smtp_password').nullable().alter();
   });
 };
 
@@ -18,11 +22,16 @@ export async function up(knex) {
  * @returns { Promise<void> }
  */
 export async function down(knex) {
-  return knex.schema.alterTable('byt_email_configurations', function(table) {
-    table.dropColumn('sendgrid_api_key');
-    table.dropColumn('config_type');
-  });
+  // Remove sendgrid_api_key column
   await knex.schema.alterTable('byt_email_configurations', function(table) {
-    table.enu('config_type', ['smtp', 'gmail_app_password', 'oauth2']).defaultTo('smtp').notNullable();
+    table.dropColumn('sendgrid_api_key');
+  });
+
+  // Make SMTP fields not nullable again (assuming they were originally not nullable)
+  await knex.schema.alterTable('byt_email_configurations', function(table) {
+    table.string('smtp_host').notNullable().alter();
+    table.integer('smtp_port').notNullable().alter();
+    table.string('smtp_user').notNullable().alter();
+    table.string('smtp_password').notNullable().alter();
   });
 };

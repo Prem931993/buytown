@@ -19,7 +19,10 @@ export const upsertSettings = async (settingsData) => {
     return updated;
   } else {
     const [inserted] = await db(TABLE_NAME)
-      .insert(settingsData)
+      .insert({
+        ...settingsData,
+        selected_categories: settingsData.selected_categories || []
+      })
       .returning('*');
     return inserted;
   }

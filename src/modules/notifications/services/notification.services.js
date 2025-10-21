@@ -50,7 +50,7 @@ export const sendOrderEmails = async (order, user) => {
   try {
     // Send email to admin
     const adminEmailData = {
-      to: process.env.ADMIN_EMAIL || 'admin@buytown.com',
+      to: process.env.ADMIN_EMAIL || 'buytowncbe@gmail.com',
       subject: `New Order #${order.order_number} Received`,
       html: `
         <h2>New Order Received</h2>
@@ -64,21 +64,59 @@ export const sendOrderEmails = async (order, user) => {
       `
     };
 
-    // Send email to user
+    // Send email to user using the modern template
+    const fs = await import('fs');
+    const path = await import('path');
+    const knex = (await import('../../../config/db.js')).default;
+
+    // Read the order confirmation template
+    const templatePath = path.join(process.cwd(), 'templates', 'order-confirmation.html');
+    let templateHtml = await fs.readFileSync(templatePath, 'utf8');
+
+    // Get order items with product details
+    const orderItems = await knex('byt_order_items as oi')
+      .join('byt_products as p', 'oi.product_id', 'p.id')
+      .select(
+        'oi.quantity',
+        'oi.price',
+        'oi.total_price',
+        'p.name as product_name',
+      )
+      .where('oi.order_id', order.id);
+
+    // Format order items for template
+    const itemsHtml = orderItems.map(item => `
+      <div class="order-item">
+        <div class="item-info">
+          <div class="item-name">${item.product_name}</div>
+          <div class="item-details">Quantity: ${item.quantity} × ₹${item.price}</div>
+        </div>
+        <div class="item-total">₹${item.total_price}</div>
+      </div>
+    `).join('');
+
+    // Replace placeholders with actual data
+    const orderDate = new Date(order.created_at).toLocaleDateString('en-IN', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    templateHtml = templateHtml
+      .replace(/{{first_name}}/g, user.firstname || '')
+      .replace(/{{last_name}}/g, user.lastname || '')
+      .replace(/{{order_number}}/g, order.order_number)
+      .replace(/{{order_date}}/g, orderDate)
+      .replace(/{{status}}/g, order.status.replace('_', ' ').toUpperCase())
+      .replace(/{{total_amount}}/g, order.total_amount.toString())
+      .replace(/{{order_items}}/g, itemsHtml);
+
     const userEmailData = {
       to: user.email,
-      subject: `Order Confirmation - ${order.order_number}`,
-      html: `
-        <h2>Order Confirmation</h2>
-        <p>Dear ${user.first_name} ${user.last_name},</p>
-        <p>Thank you for your order! Your order has been received and is being processed.</p>
-        <p><strong>Order Number:</strong> ${order.order_number}</p>
-        <p><strong>Total Amount:</strong> ₹${order.total_amount}</p>
-        <p><strong>Status:</strong> ${order.status}</p>
-        <p>You will receive updates on your order status via email and SMS.</p>
-        <br>
-        <p>Best regards,<br>BuyTown Team</p>
-      `
+      subject: `Order Confirmed! - ${order.order_number}`,
+      html: templateHtml
     };
 
     // Send emails using the email service
