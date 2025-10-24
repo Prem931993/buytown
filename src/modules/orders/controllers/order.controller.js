@@ -529,14 +529,12 @@ export async function cancelOrderByUser(req, res) {
     const { id } = req.params;
     const { cancellation_reason } = req.body;
     const customerId = req.user.id; // Assuming user auth middleware sets req.user
-    console.log("customerId", customerId)
     if (!cancellation_reason) {
       return res.status(400).json({
         success: false,
         error: 'Cancellation reason is required'
       });
     }
-    console.log("cancellation_reason", cancellation_reason)
 
     const result = await services.cancelOrderByCustomer(parseInt(id), customerId, cancellation_reason);
 
@@ -650,6 +648,51 @@ export async function getUserOrderById(req, res) {
         error: result.error || 'Order not found'
       });
     }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+}
+
+export async function downloadUserInvoice(req, res) {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id; // From auth middleware
+    const userRoleId = req.user.role_id; // From auth middleware
+
+    const orderId = parseInt(id);
+
+    // First verify the order exists
+    const orderResult = await services.getOrderById(orderId);
+
+    if (!orderResult.success || !orderResult.order) {
+      return res.status(404).json({
+        success: false,
+        error: 'Order not found'
+      });
+    }
+
+    const order = orderResult.order;
+
+    // Check authorization: user must be either the customer or the assigned delivery person
+    const isCustomer = order.user_id === userId;
+    const isDeliveryPerson = order.deliveryPersonId === userId;
+
+    if (!isCustomer && !isDeliveryPerson) {
+      return res.status(403).json({
+        success: false,
+        error: 'Unauthorized: You can only download invoices for orders you placed or are assigned to deliver'
+      });
+    }
+
+    // Generate and download the invoice PDF
+    const fileName = `invoice_${orderId}.pdf`;
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Type', 'application/pdf');
+
+    await pdfServices.generateInvoicePDF(orderId, res);
   } catch (error) {
     res.status(500).json({
       success: false,

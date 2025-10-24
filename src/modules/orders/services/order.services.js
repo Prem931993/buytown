@@ -122,6 +122,7 @@ export async function getOrderById(id) {
         'byt_products.gst as product_gst',
         'byt_variations.label as variation_name',
         'delivery_user.firstname as delivery_firstname',
+        'delivery_user.id as delivery_person_id',
         'delivery_user.lastname as delivery_lastname',
         'delivery_user.vehicle_number as delivery_vehicle_number'
       );

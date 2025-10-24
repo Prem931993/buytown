@@ -61,4 +61,7 @@ router.put('/:id/received', verifyUserDualAuth, controller.markOrderReceivedByUs
 // User get order details with items
 router.get('/details/:id', verifyUserDualAuth, controller.getUserOrderById);
 
+// User download invoice
+router.get('/:id/download-invoice', verifyUserDualAuth, controller.downloadUserInvoice);
+
 export default router;
