@@ -125,7 +125,6 @@ export async function updateUserProfile(req, res) {
       firstname,
       lastname,
       email,
-      phone_no,
       address,
       gstin
     } = req.body;
@@ -135,7 +134,6 @@ export async function updateUserProfile(req, res) {
       firstname,
       lastname,
       email,
-      phone_no,
       address,
       gstin
     };

@@ -6,10 +6,11 @@ const USER_VEHICLE_TABLE = 'byt_user_vehicle';
 export async function getAllVehicles() {
   const vehicles = await knex(TABLE_NAME).where({ is_active: true });
 
-  // Add delivery persons for each vehicle
+  // Add delivery persons and ongoing orders count for each vehicle
   for (let vehicle of vehicles) {
     const deliveryPersons = await getDeliveryPersonsByVehicle(vehicle.id);
     vehicle.deliveryPersons = deliveryPersons;
+    vehicle.ongoing_orders_count = await getOngoingOrdersCountByVehicle(vehicle.id);
   }
 
   return vehicles;
@@ -61,6 +62,26 @@ export async function getVehiclesWithDeliveryPersonCount() {
   }
 
   return vehicles;
+}
+
+// Get ongoing orders count for a specific delivery person
+export async function getOngoingOrdersCountByDeliveryPerson(deliveryPersonId) {
+  return knex('byt_orders')
+    .where('delivery_person_id', deliveryPersonId)
+    .andWhere('status', 'in', ['approved', 'confirmed', 'processing', 'shipped'])
+    .count('id as count')
+    .first()
+    .then(result => parseInt(result.count) || 0);
+}
+
+// Get ongoing orders count for a specific vehicle (sum of its delivery persons' orders)
+export async function getOngoingOrdersCountByVehicle(vehicleId) {
+  const deliveryPersons = await getDeliveryPersonsByVehicle(vehicleId);
+  let totalCount = 0;
+  for (let person of deliveryPersons) {
+    totalCount += await getOngoingOrdersCountByDeliveryPerson(person.id);
+  }
+  return totalCount;
 }
 
 // Calculate delivery charges based on vehicle configuration and distance

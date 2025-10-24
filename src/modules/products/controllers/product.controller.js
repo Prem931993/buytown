@@ -1,6 +1,7 @@
 import * as services from '../services/product.services.js';
 import * as brandServices from '../../brands/services/brand.services.js';
 import * as brandModels from '../../brands/models/brand.models.js';
+import knex from '../../../config/db.js';
 import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -394,41 +395,81 @@ export async function importProducts(req, res) {
             brandId = brand.id;
           }
         }
-        
-        // Create the product
-        const result = await services.createProductService({
-          name: productData.name,
-          description: productData.description || '',
-          price: parseFloat(productData.price),
-          category_id: productData.category_id ? parseInt(productData.category_id) : null,
-          brand_id: brandId,
-          sku_code: productData.sku_code || null,
-          hsn_code: productData.hsn_code || null,
-          color: productData.color || null,
-          size_dimension: productData.size_dimension || null,
-          weight_kg: productData.weight_kg ? parseFloat(productData.weight_kg) : null,
-          length_mm: productData.length_mm ? parseFloat(productData.length_mm) : null,
-          width_mm: productData.width_mm ? parseFloat(productData.width_mm) : null,
-          height_mm: productData.height_mm ? parseFloat(productData.height_mm) : null,
-          selling_price: productData.selling_price ? parseFloat(productData.selling_price) : null,
-          discount: productData.discount ? parseFloat(productData.discount) : null,
-          gst: productData.gst ? parseFloat(productData.gst) : null,
-          unit: productData.unit || null,
-          stock: productData.stock ? parseInt(productData.stock) : 0,
-          status: productData.status || 1,
-          product_type: productData.parent_sku ? 'child' : 'simple'
-        });
-        
+
+        let result;
+        let isUpdate = false;
+
+        // Check if product with same SKU already exists
+        if (productData.sku_code) {
+          const existingProduct = await knex('byt_products')
+            .where('sku_code', productData.sku_code)
+            .whereNull('deleted_at')
+            .first();
+
+          if (existingProduct) {
+            // Update existing product
+            result = await services.updateProductService(existingProduct.id, {
+              name: productData.name,
+              description: productData.description || '',
+              price: parseFloat(productData.price),
+              category_id: productData.category_id ? parseInt(productData.category_id) : null,
+              brand_id: brandId,
+              sku_code: productData.sku_code,
+              hsn_code: productData.hsn_code || null,
+              color: productData.color || null,
+              size_dimension: productData.size_dimension || null,
+              weight_kg: productData.weight_kg ? parseFloat(productData.weight_kg) : null,
+              length_mm: productData.length_mm ? parseFloat(productData.length_mm) : null,
+              width_mm: productData.width_mm ? parseFloat(productData.width_mm) : null,
+              height_mm: productData.height_mm ? parseFloat(productData.height_mm) : null,
+              selling_price: productData.selling_price ? parseFloat(productData.selling_price) : null,
+              discount: productData.discount ? parseFloat(productData.discount) : null,
+              gst: productData.gst ? parseFloat(productData.gst) : null,
+              unit: productData.unit || null,
+              stock: productData.stock ? parseInt(productData.stock) : 0,
+              status: productData.status || 1,
+              product_type: productData.parent_sku ? 'child' : 'simple'
+            });
+            isUpdate = true;
+          }
+        }
+
+        // Create new product if SKU doesn't exist or no SKU provided
+        if (!isUpdate) {
+          result = await services.createProductService({
+            name: productData.name,
+            description: productData.description || '',
+            price: parseFloat(productData.price),
+            category_id: productData.category_id ? parseInt(productData.category_id) : null,
+            brand_id: brandId,
+            sku_code: productData.sku_code || null,
+            hsn_code: productData.hsn_code || null,
+            color: productData.color || null,
+            size_dimension: productData.size_dimension || null,
+            weight_kg: productData.weight_kg ? parseFloat(productData.weight_kg) : null,
+            length_mm: productData.length_mm ? parseFloat(productData.length_mm) : null,
+            width_mm: productData.width_mm ? parseFloat(productData.width_mm) : null,
+            height_mm: productData.height_mm ? parseFloat(productData.height_mm) : null,
+            selling_price: productData.selling_price ? parseFloat(productData.selling_price) : null,
+            discount: productData.discount ? parseFloat(productData.discount) : null,
+            gst: productData.gst ? parseFloat(productData.gst) : null,
+            unit: productData.unit || null,
+            stock: productData.stock ? parseInt(productData.stock) : 0,
+            status: productData.status || 1,
+            product_type: productData.parent_sku ? 'child' : 'simple'
+          });
+        }
+
         if (result.error) {
           errors.push({ row: i + 2, message: result.error });
           continue;
         }
-        
+
         // Store product ID in map for parent-child relationship mapping
         if (productData.sku_code) {
           productMap.set(productData.sku_code, result.product.id);
         }
-        
+
         successCount++;
       } catch (error) {
         errors.push({ row: i + 2, message: error.message });

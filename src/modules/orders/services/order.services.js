@@ -188,6 +188,8 @@ export async function getOrderById(id) {
       deliveryCharges: parseFloat(firstRow.delivery_charges) || 0,
       deliveryPersonId: firstRow.delivery_person_id || null,
       deliveryDriver: firstRow.delivery_driver || null,
+      rejection_reason: firstRow.rejection_reason || null,
+      notes: firstRow.notes || null,
       vehicle: firstRow.delivery_person_id ? {
         vehicle_number: firstRow.assigned_vehicle_number || firstRow.delivery_vehicle_number || 'N/A',
         vehicle_type: firstRow.delivery_vehicle_type || 'N/A'
@@ -349,6 +351,8 @@ export async function getAllOrders() {
           delivery_charges: parseFloat(row.delivery_charges) || 0,
           delivery_person_id: row.delivery_person_id || null,
           delivery_driver: row.delivery_driver || null,
+          rejection_reason: row.rejection_reason || null,
+          notes: row.notes || null,
           vehicle: row.delivery_person_id ? {
             vehicle_number: row.assigned_vehicle_number || row.delivery_vehicle_number || 'N/A',
             vehicle_type: row.delivery_vehicle_type || 'N/A'
@@ -440,6 +444,20 @@ export async function approveOrder(orderId, vehicleId, deliveryDistance, deliver
     // Import vehicle model to calculate delivery charges
     const { calculateDeliveryCharge } = await import('../../vehicles/models/vehicle.models.js');
 
+    // Validate delivery person exists and has correct role
+    if (deliveryPersonId) {
+      const deliveryPerson = await db('byt_users')
+        .join('byt_roles', 'byt_users.role_id', 'byt_roles.id')
+        .where('byt_users.id', deliveryPersonId)
+        .andWhere('byt_roles.name', 'delivery_person')
+        .select('byt_users.firstname', 'byt_users.lastname', 'byt_users.id')
+        .first();
+
+      if (!deliveryPerson) {
+        return { success: false, error: 'Invalid delivery person selected' };
+      }
+    }
+
     // Calculate delivery charges using new vehicle-based logic
     const chargeDetails = await calculateDeliveryCharge(vehicleId, deliveryDistance);
 
@@ -487,8 +505,6 @@ export async function approveOrder(orderId, vehicleId, deliveryDistance, deliver
     const result = await db('byt_orders')
       .where('id', orderId)
       .update(updateData);
-
-
 
     if (result > 0) {
       // Get updated order details
@@ -969,3 +985,5 @@ export async function markOrderReceivedByUser(orderId, customerId) {
     return { success: false, error: error.message };
   }
 }
+
+

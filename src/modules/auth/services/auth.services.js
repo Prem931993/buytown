@@ -361,15 +361,15 @@ export async function validatePhoneService(phone_no) {
 
   // Count OTP sends today for this phone
   const otpSendsToday = await smsModels.countOtpSendsToday(phone_no, today);
-  if (otpSendsToday >= 5) {
+  if (otpSendsToday >= 100) {
     return { error: 'OTP send limit reached for today. Please try again tomorrow.', status: 429 };
   }
 
   // Check last OTP send time for cooldown
-  const lastOtpSend = await smsModels.getLastOtpSend(phone_no);
-  if (lastOtpSend && new Date(lastOtpSend.attempt_date) > oneMinuteAgo) {
-    return { error: 'Please wait at least 1 minute before requesting another OTP.', status: 429 };
-  }
+  // const lastOtpSend = await smsModels.getLastOtpSend(phone_no);
+  // if (lastOtpSend && new Date(lastOtpSend.attempt_date) > oneMinuteAgo) {
+  //   return { error: 'Please wait at least 1 minute before requesting another OTP.', status: 429 };
+  // }
 
   // Send OTP
   const otp = smsServices.generateOtp();
@@ -480,15 +480,15 @@ export async function userForgotPasswordService(phone_no, req) {
 
   // Count OTP sends today for this phone
   const otpSendsToday = await smsModels.countOtpSendsToday(phone_no, today);
-  if (otpSendsToday >= 5) {
+  if (otpSendsToday >= 100) {
     return { error: 'OTP send limit reached for today. Please try again tomorrow.', status: 429 };
   }
 
   // Check last OTP send time for cooldown
-  const lastOtpSend = await smsModels.getLastOtpSend(phone_no);
-  if (lastOtpSend && new Date(lastOtpSend.attempt_date) > oneMinuteAgo) {
-    return { error: 'Please wait at least 1 minute before requesting another OTP.', status: 429 };
-  }
+  // const lastOtpSend = await smsModels.getLastOtpSend(phone_no);
+  // if (lastOtpSend && new Date(lastOtpSend.attempt_date) > oneMinuteAgo) {
+  //   return { error: 'Please wait at least 1 minute before requesting another OTP.', status: 429 };
+  // }
 
   // Generate and send OTP
   const otp = smsServices.generateOtp();
@@ -579,15 +579,15 @@ export async function userResendForgotPasswordOtpService(phone_no, req) {
 
   // Count OTP sends today for this phone
   const otpSendsToday = await smsModels.countOtpSendsToday(phone_no, today);
-  if (otpSendsToday >= 5) {
+  if (otpSendsToday >= 100) {
     return { error: 'OTP send limit reached for today. Please try again tomorrow.', status: 429 };
   }
 
   // Check last OTP send time for cooldown
-  const lastOtpSend = await smsModels.getLastOtpSend(phone_no);
-  if (lastOtpSend && new Date(lastOtpSend.attempt_date) > oneMinuteAgo) {
-    return { error: 'Please wait at least 1 minute before requesting another OTP.', status: 429 };
-  }
+  // const lastOtpSend = await smsModels.getLastOtpSend(phone_no);
+  // if (lastOtpSend && new Date(lastOtpSend.attempt_date) > oneMinuteAgo) {
+  //   return { error: 'Please wait at least 1 minute before requesting another OTP.', status: 429 };
+  // }
 
   // Generate and send new OTP
   const otp = smsServices.generateOtp();
@@ -637,15 +637,15 @@ export async function userResendSetPasswordOtpService(phone_no, req) {
 
   // Count OTP sends today for this phone
   const otpSendsToday = await smsModels.countOtpSendsToday(phone_no, today);
-  if (otpSendsToday >= 5) {
+  if (otpSendsToday >= 100) {
     return { error: 'OTP send limit reached for today. Please try again tomorrow.', status: 429 };
   }
 
   // Check last OTP send time for cooldown
-  const lastOtpSend = await smsModels.getLastOtpSend(phone_no);
-  if (lastOtpSend && new Date(lastOtpSend.attempt_date) > oneMinuteAgo) {
-    return { error: 'Please wait at least 1 minute before requesting another OTP.', status: 429 };
-  }
+  // const lastOtpSend = await smsModels.getLastOtpSend(phone_no);
+  // if (lastOtpSend && new Date(lastOtpSend.attempt_date) > oneMinuteAgo) {
+  //   return { error: 'Please wait at least 1 minute before requesting another OTP.', status: 429 };
+  // }
 
   // Generate and send new OTP
   const otp = smsServices.generateOtp();
@@ -687,12 +687,9 @@ export async function updateUserProfileService(userId, updateData) {
       }
     }
 
-    // Validate phone uniqueness if phone is being updated
-    if (updateData.phone_no && updateData.phone_no !== existingUser.phone_no) {
-      const phoneExists = await models.findUserByPhone(updateData.phone_no);
-      if (phoneExists) {
-        return { error: 'Phone number already exists.', status: 409 };
-      }
+    // Prevent updating phone number
+    if (updateData.phone_no !== undefined) {
+      return { error: 'Phone number cannot be updated.', status: 400 };
     }
 
     // Update user profile (only profile fields, no terms agreement)
