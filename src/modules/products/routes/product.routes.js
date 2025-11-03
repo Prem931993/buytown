@@ -54,6 +54,8 @@ const router = Router();
 
 // Routes for products
 router.get('/', verifyDualAuth, productController.getAllProducts);
+router.get('/search-for-order', verifyDualAuth, productController.searchProductsForOrder);
+router.get('/available-for-order/:orderId', verifyDualAuth, productController.getAvailableProductsForOrder);
 router.get('/:id', verifyDualAuth, productController.getProductById);
 router.post('/', verifyDualAuth, upload.array('images', 10), productController.createProduct);
 router.post('/import', verifyDualAuth, importUpload.single('file'), productController.importProducts);

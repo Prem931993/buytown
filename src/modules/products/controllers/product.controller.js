@@ -668,5 +668,163 @@ export async function deleteProductImage(req, res) {
   }
 }
 
+// Search products for order item selection
+export async function searchProductsForOrder(req, res) {
+  try {
+    const { search = '', page = 1, limit = 20 } = req.query;
+
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    let query = knex('byt_products')
+      .select(
+        'id',
+        'name',
+        'sku_code',
+        'hsn_code',
+        'price',
+        'selling_price',
+        'stock',
+        'gst',
+        'status'
+      )
+      .whereNull('deleted_at')
+      .where('status', 1) // Only active products
+      .orderBy('name');
+
+    // Apply search filter if provided
+    if (search.trim()) {
+      const searchTerm = `%${search.trim()}%`;
+      query = query.where(function() {
+        this.where('name', 'ilike', searchTerm)
+            .orWhere('sku_code', 'ilike', searchTerm)
+            .orWhere('hsn_code', 'ilike', searchTerm);
+      });
+    }
+
+    // Get total count for pagination
+    const countQuery = knex('byt_products')
+      .count('id as total')
+      .whereNull('deleted_at')
+      .where('status', 1);
+
+    if (search.trim()) {
+      const searchTerm = `%${search.trim()}%`;
+      countQuery.where(function() {
+        this.where('name', 'ilike', searchTerm)
+            .orWhere('sku_code', 'ilike', searchTerm)
+            .orWhere('hsn_code', 'ilike', searchTerm);
+      });
+    }
+
+    const [products, [{ total }]] = await Promise.all([
+      query.limit(parseInt(limit)).offset(offset),
+      countQuery
+    ]);
+
+    const totalPages = Math.ceil(total / parseInt(limit));
+
+    res.status(200).json({
+      statusCode: 200,
+      availableProducts: products,
+      pagination: {
+        current_page: parseInt(page),
+        total_pages: totalPages,
+        total_items: parseInt(total),
+        per_page: parseInt(limit)
+      }
+    });
+  } catch (error) {
+    console.error('Error searching products:', error);
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
+
+// Get available products for order (excluding products already in the order)
+export async function getAvailableProductsForOrder(req, res) {
+  try {
+    const { orderId } = req.params;
+    const { search = '', page = 1, limit = 20 } = req.query;
+
+    if (!orderId) {
+      return res.status(400).json({ statusCode: 400, error: 'Order ID is required' });
+    }
+
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    // First, get the product IDs that are already in the order
+    const orderItems = await knex('byt_order_items')
+      .select('product_id')
+      .where('order_id', parseInt(orderId));
+
+    const excludedProductIds = orderItems.map(item => item.product_id);
+
+    let query = knex('byt_products')
+      .select(
+        'id',
+        'name',
+        'sku_code',
+        'hsn_code',
+        'price',
+        'selling_price',
+        'stock',
+        'gst',
+        'status'
+      )
+      .whereNull('deleted_at')
+      .where('status', 1) // Only active products
+      .where('stock', '>', 0) // Only products with stock > 0
+      .whereNotIn('id', excludedProductIds) // Exclude products already in the order
+      .orderBy('name');
+
+    // Apply search filter if provided
+    if (search.trim()) {
+      const searchTerm = `%${search.trim()}%`;
+      query = query.where(function() {
+        this.where('name', 'ilike', searchTerm)
+            .orWhere('sku_code', 'ilike', searchTerm)
+            .orWhere('hsn_code', 'ilike', searchTerm);
+      });
+    }
+
+    // Get total count for pagination
+    const countQuery = knex('byt_products')
+      .count('id as total')
+      .whereNull('deleted_at')
+      .where('status', 1)
+      .where('stock', '>', 0)
+      .whereNotIn('id', excludedProductIds);
+
+    if (search.trim()) {
+      const searchTerm = `%${search.trim()}%`;
+      countQuery.where(function() {
+        this.where('name', 'ilike', searchTerm)
+            .orWhere('sku_code', 'ilike', searchTerm)
+            .orWhere('hsn_code', 'ilike', searchTerm);
+      });
+    }
+
+    const [products, [{ total }]] = await Promise.all([
+      query.limit(parseInt(limit)).offset(offset),
+      countQuery
+    ]);
+
+    const totalPages = Math.ceil(total / parseInt(limit));
+
+    res.status(200).json({
+      statusCode: 200,
+      products,
+      pagination: {
+        current_page: parseInt(page),
+        total_pages: totalPages,
+        total_items: parseInt(total),
+        per_page: parseInt(limit)
+      }
+    });
+  } catch (error) {
+    console.error('Error getting available products for order:', error);
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
+
 // Export multer upload middleware
 export { upload, importUpload };

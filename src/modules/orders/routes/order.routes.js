@@ -64,4 +64,9 @@ router.get('/details/:id', verifyUserDualAuth, controller.getUserOrderById);
 // User download invoice
 router.get('/:id/download-invoice', verifyUserDualAuth, controller.downloadUserInvoice);
 
+// Order Item Management Routes
+router.post('/:id/items', verifyDualAuth, controller.addOrderItem);
+router.put('/:id/items/:itemId', verifyDualAuth, controller.updateOrderItem);
+router.delete('/:id/items/:itemId', verifyDualAuth, controller.removeOrderItem);
+
 export default router;

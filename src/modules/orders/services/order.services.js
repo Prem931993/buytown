@@ -987,4 +987,392 @@ export async function markOrderReceivedByUser(orderId, customerId) {
   }
 }
 
+// Order Item Management Functions
+export async function addOrderItem(orderId, itemData) {
+  try {
+    // Verify order exists and is in editable state
+    const order = await db('byt_orders')
+      .where('id', orderId)
+      .select('status', 'user_id')
+      .first();
+
+    if (!order) {
+      return { success: false, error: 'Order not found' };
+    }
+
+    if (order.status !== 'awaiting_confirmation') {
+      return { success: false, error: 'Order items can only be modified before approval' };
+    }
+
+    // Check if product already exists in this order
+    const existingItem = await db('byt_order_items')
+      .where('order_id', orderId)
+      .andWhere('product_id', itemData.product_id)
+      .andWhere('variation_id', itemData.variation_id || null)
+      .select('id', 'quantity')
+      .first();
+
+    if (existingItem) {
+      // Update existing item quantity
+      const newQuantity = existingItem.quantity + parseInt(itemData.quantity);
+
+      // Check stock availability for the additional quantity
+      const product = await db('byt_products')
+        .where('id', itemData.product_id)
+        .select('stock', 'held_quantity', 'status')
+        .first();
+
+      if (!product) {
+        return { success: false, error: 'Product not found' };
+      }
+
+      if (product.status !== 1) {
+        return { success: false, error: 'Product is not available' };
+      }
+
+      const availableStock = product.stock - product.held_quantity + existingItem.quantity;
+      if (availableStock < itemData.quantity) {
+        return { success: false, error: `Insufficient stock. Available: ${availableStock}` };
+      }
+
+      // Get product price and GST for recalculation
+      const productDetails = await db('byt_products')
+        .where('id', itemData.product_id)
+        .select('price', 'gst', 'name', 'sku_code', 'hsn_code')
+        .first();
+
+      if (!productDetails) {
+        return { success: false, error: 'Product details not found' };
+      }
+
+      // Calculate new item totals
+      const price = parseFloat(productDetails.price);
+      const gstRate = parseFloat(productDetails.gst || 0);
+      const itemTotal = price * newQuantity;
+      const taxAmount = itemTotal * gstRate / 100;
+
+      // Update existing item
+      await db('byt_order_items')
+        .where('id', existingItem.id)
+        .update({
+          quantity: newQuantity,
+          total_price: itemTotal
+        });
+
+      // Update product held quantity (only increment by the additional quantity)
+      await db('byt_products')
+        .where('id', itemData.product_id)
+        .increment('held_quantity', parseInt(itemData.quantity));
+
+      // Recalculate order totals
+      await recalculateOrderTotals(orderId);
+
+      // Get updated order
+      const updatedOrder = await getOrderById(orderId);
+
+      return { success: true, item: {
+        id: existingItem.id,
+        product_id: itemData.product_id,
+        variation_id: itemData.variation_id,
+        quantity: newQuantity,
+        price: price,
+        total_price: itemTotal,
+        product_name: productDetails.name,
+        sku: productDetails.sku_code,
+        hsn_code: productDetails.hsn_code,
+        gst_rate: gstRate,
+        tax_amount: taxAmount
+      }, order: updatedOrder.order, updated: true };
+    }
+
+    // Product doesn't exist in order, add as new item
+    // Check if product exists and has sufficient stock
+    const product = await db('byt_products')
+      .where('id', itemData.product_id)
+      .select('stock', 'held_quantity', 'status')
+      .first();
+
+    if (!product) {
+      return { success: false, error: 'Product not found' };
+    }
+
+    if (product.status !== 1) {
+      return { success: false, error: 'Product is not available' };
+    }
+
+    const availableStock = product.stock - product.held_quantity;
+    if (availableStock < itemData.quantity) {
+      return { success: false, error: `Insufficient stock. Available: ${availableStock}` };
+    }
+
+    // Get product price and GST
+    const productDetails = await db('byt_products')
+      .where('id', itemData.product_id)
+      .select('price', 'gst', 'name', 'sku_code', 'hsn_code')
+      .first();
+
+    if (!productDetails) {
+      return { success: false, error: 'Product details not found' };
+    }
+
+    // Calculate item totals
+    const price = parseFloat(productDetails.price);
+    const quantity = parseInt(itemData.quantity);
+    const gstRate = parseFloat(productDetails.gst || 0);
+    const itemTotal = price * quantity;
+    const taxAmount = itemTotal * gstRate / 100;
+
+    // Add item to order
+    const insertResult = await db('byt_order_items').insert({
+      order_id: orderId,
+      product_id: itemData.product_id,
+      variation_id: itemData.variation_id || null,
+      quantity: quantity,
+      price: price,
+      total_price: itemTotal,
+      created_at: new Date()
+    });
+
+    const itemId = Array.isArray(insertResult) ? insertResult[0] : insertResult;
+
+    // Update product held quantity
+    await db('byt_products')
+      .where('id', itemData.product_id)
+      .increment('held_quantity', quantity);
+
+    // Recalculate order totals
+    await recalculateOrderTotals(orderId);
+
+    // Get updated order
+    const updatedOrder = await getOrderById(orderId);
+
+    return { success: true, item: {
+      id: itemId,
+      product_id: itemData.product_id,
+      variation_id: itemData.variation_id,
+      quantity: quantity,
+      price: price,
+      total_price: itemTotal,
+      product_name: productDetails.name,
+      sku: productDetails.sku_code,
+      hsn_code: productDetails.hsn_code,
+      gst_rate: gstRate,
+      tax_amount: taxAmount
+    }, order: updatedOrder.order, updated: false };
+
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function updateOrderItem(orderId, itemId, updateData) {
+  try {
+    // Verify order exists and is in editable state
+    const order = await db('byt_orders')
+      .where('id', orderId)
+      .select('status', 'user_id')
+      .first();
+
+    if (!order) {
+      return { success: false, error: 'Order not found' };
+    }
+
+    if (order.status !== 'awaiting_confirmation') {
+      return { success: false, error: 'Order items can only be modified before approval' };
+    }
+
+    // Get current item
+    const currentItem = await db('byt_order_items')
+      .where('id', itemId)
+      .andWhere('order_id', orderId)
+      .select('product_id', 'quantity')
+      .first();
+
+    if (!currentItem) {
+      return { success: false, error: 'Order item not found' };
+    }
+
+    const newQuantity = parseInt(updateData.quantity);
+
+    if (isNaN(newQuantity) || newQuantity <= 0) {
+      return { success: false, error: 'Quantity must be a valid number greater than 0' };
+    }
+
+    // Check stock availability for quantity change
+    if (newQuantity !== currentItem.quantity) {
+      const product = await db('byt_products')
+        .where('id', currentItem.product_id)
+        .select('stock', 'held_quantity')
+        .first();
+
+      const currentHeldForThisOrder = currentItem.quantity;
+      const availableStock = product.stock - (product.held_quantity - currentHeldForThisOrder);
+
+      if (availableStock < newQuantity) {
+        return { success: false, error: `Insufficient stock. Available: ${availableStock}` };
+      }
+
+      // Update held quantity
+      const quantityDifference = newQuantity - currentItem.quantity;
+      await db('byt_products')
+        .where('id', currentItem.product_id)
+        .increment('held_quantity', quantityDifference);
+    }
+
+    // Get product price for recalculation
+    const productDetails = await db('byt_products')
+      .where('id', currentItem.product_id)
+      .select('price', 'gst')
+      .first();
+
+    const price = parseFloat(productDetails.price);
+    const gstRate = parseFloat(productDetails.gst || 0);
+    const itemTotal = price * newQuantity;
+    const taxAmount = itemTotal * gstRate / 100;
+
+    // Update item
+    await db('byt_order_items')
+      .where('id', itemId)
+      .update({
+        quantity: newQuantity,
+        total_price: itemTotal
+      });
+
+    // Recalculate order totals
+    await recalculateOrderTotals(orderId);
+
+    // Get updated order
+    const updatedOrder = await getOrderById(orderId);
+
+    return { success: true, item: {
+      id: itemId,
+      quantity: newQuantity,
+      price: price,
+      total_price: itemTotal,
+      gst_rate: gstRate,
+      tax_amount: taxAmount
+    }, order: updatedOrder.order };
+
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function removeOrderItem(orderId, itemId) {
+  try {
+    // Verify order exists and is in editable state
+    const order = await db('byt_orders')
+      .where('id', orderId)
+      .select('status')
+      .first();
+
+    if (!order) {
+      return { success: false, error: 'Order not found' };
+    }
+
+    if (order.status !== 'awaiting_confirmation') {
+      return { success: false, error: 'Order items can only be modified before approval' };
+    }
+
+    // Get item details before deletion
+    const item = await db('byt_order_items')
+      .where('id', itemId)
+      .andWhere('order_id', orderId)
+      .select('product_id', 'quantity')
+      .first();
+
+    if (!item) {
+      return { success: false, error: 'Order item not found' };
+    }
+
+    // Delete item
+    await db('byt_order_items')
+      .where('id', itemId)
+      .del();
+
+    // Release held stock
+    await db('byt_products')
+      .where('id', item.product_id)
+      .decrement('held_quantity', item.quantity);
+
+    // Update product status if needed
+    await updateProductStatus(item.product_id);
+
+    // Recalculate order totals
+    await recalculateOrderTotals(orderId);
+
+    // Get updated order
+    const updatedOrder = await getOrderById(orderId);
+
+    return { success: true, order: updatedOrder.order };
+
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function recalculateOrderTotals(orderId) {
+  try {
+    // Get all order items
+    const items = await db('byt_order_items')
+      .where('order_id', orderId)
+      .select('total_price');
+
+    // Calculate subtotal
+    const subtotal = items.reduce((sum, item) => sum + parseFloat(item.total_price), 0);
+
+    // Get order details
+    const order = await db('byt_orders')
+      .where('id', orderId)
+      .select('shipping_amount', 'tax_amount', 'discount_amount', 'delivery_charges')
+      .first();
+
+    if (!order) {
+      return { success: false, error: 'Order not found' };
+    }
+
+    // Calculate tax from items (GST)
+    const itemsWithTax = await db('byt_order_items')
+      .leftJoin('byt_products', 'byt_order_items.product_id', 'byt_products.id')
+      .where('byt_order_items.order_id', orderId)
+      .select('byt_order_items.quantity', 'byt_order_items.price', 'byt_products.gst');
+
+    let totalTax = 0;
+    itemsWithTax.forEach(item => {
+      const gstRate = parseFloat(item.gst || 0);
+      const itemTotal = parseFloat(item.price) * parseInt(item.quantity);
+      totalTax += itemTotal * gstRate / 100;
+    });
+
+    // Calculate new total
+    const shipping = parseFloat(order.shipping_amount || 0);
+    const discount = parseFloat(order.discount_amount || 0);
+    const deliveryCharges = parseFloat(order.delivery_charges || 0);
+
+    const total = subtotal + shipping + totalTax + deliveryCharges - discount;
+
+    // Update order
+    await db('byt_orders')
+      .where('id', orderId)
+      .update({
+        subtotal: subtotal,
+        tax_amount: totalTax,
+        total_amount: total,
+        updated_at: new Date()
+      });
+
+    return { success: true, totals: {
+      subtotal,
+      tax_amount: totalTax,
+      shipping_amount: shipping,
+      discount_amount: discount,
+      delivery_charges: deliveryCharges,
+      total_amount: total
+    }};
+
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
 

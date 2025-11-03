@@ -700,3 +700,104 @@ export async function downloadUserInvoice(req, res) {
     });
   }
 }
+
+// Order Item Management Controllers
+export async function addOrderItem(req, res) {
+  try {
+    const { id } = req.params;
+    const { product_id, quantity } = req.body;
+
+    if (!product_id || !quantity || quantity <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Product ID and valid quantity are required'
+      });
+    }
+
+    const itemData = {
+      product_id: parseInt(product_id),
+      quantity: parseInt(quantity)
+    };
+
+    const result = await services.addOrderItem(parseInt(id), itemData);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'Item added to order successfully',
+        order: result.order
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+}
+
+export async function updateOrderItem(req, res) {
+  try {
+    const { id, itemId } = req.params;
+    const { quantity, price } = req.body;
+
+    if (!quantity || quantity <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Valid quantity is required'
+      });
+    }
+
+    const updateData = { quantity, price };
+    const result = await services.updateOrderItem(parseInt(id), parseInt(itemId), updateData);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'Order item updated successfully',
+        order: result.order
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+}
+
+export async function removeOrderItem(req, res) {
+  try {
+    const { id, itemId } = req.params;
+
+    const result = await services.removeOrderItem(parseInt(id), parseInt(itemId));
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'Item removed from order successfully',
+        order: result.order
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+}
