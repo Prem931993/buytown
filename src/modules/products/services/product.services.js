@@ -93,20 +93,13 @@ export async function createProductService(productData, images = [], variations 
     if (productData.price === undefined || productData.price === null || productData.price === '') {
       productData.price = 0;
     }
-    
+
     // Set default status if not provided
     if (productData.status === undefined) {
       productData.status = 1; // active
     }
 
-    // Check if product with same name already exists
-    const existingProduct = await knex('byt_products')
-      .where({ name: productData.name })
-      .first();
-
-    if (existingProduct) {
-      return { error: 'Product with this name already exists', status: 409 };
-    }
+    // Note: Product names are not required to be unique, SKUs are used for uniqueness
 
     // Set product type based on whether it has child products or a parent
     // Check if product_type is explicitly set to 'parent' or if childProductIds are provided
@@ -242,18 +235,8 @@ export async function updateProductService(id, productData, images = null, varia
       return { error: 'Product not found', status: 404 };
     }
 
-    // Check if another product with same name already exists
-    if (productData.name) {
-      const duplicateProduct = await knex('byt_products')
-        .where({ name: productData.name })
-        .whereNot({ id })
-        .first();
+    // Note: Product names are not required to be unique, SKUs are used for uniqueness
 
-      if (duplicateProduct) {
-        return { error: 'Product with this name already exists', status: 409 };
-      }
-    }
-    
     // Set default status if not provided
     if (productData.status === undefined) {
       productData.status = 1; // active
@@ -317,7 +300,7 @@ export async function updateProductService(id, productData, images = null, varia
         await knex('byt_product_variations').where('product_id', id).del();
       }
     }
-    
+
     // Delete images marked for removal
     if (imagesToRemove && imagesToRemove.length > 0) {
       for (const imageId of imagesToRemove) {
@@ -328,7 +311,7 @@ export async function updateProductService(id, productData, images = null, varia
     // Update child products if provided
     if (childProductIds !== null) {
       await models.addChildProducts(id, childProductIds);
-      
+
       // Update child products to set their parent_product_id
       // First, reset parent_product_id for all products that had this product as parent
       await knex('byt_products')
@@ -338,7 +321,7 @@ export async function updateProductService(id, productData, images = null, varia
           parent_product_id: null,
           updated_at: knex.fn.now()
         });
-      
+
       // Then set parent_product_id for new child products
       if (childProductIds.length > 0) {
         await knex('byt_products')
@@ -442,7 +425,7 @@ export async function getProductVariationsService(productId) {
         'byt_variations.value as variation_value'
       )
       .where('byt_product_variations.product_id', productId);
-    
+
     return { variations, status: 200 };
   } catch (error) {
     return { error: error.message, status: 500 };
