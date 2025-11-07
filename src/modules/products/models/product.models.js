@@ -464,8 +464,7 @@ export async function updateProduct(id, productData) {
 // Delete product by ID (soft delete)
 export async function deleteProduct(id) {
   return knex('byt_products')
-    .where({ id })
-    .update({ deleted_at: knex.fn.now(), updated_at: knex.fn.now() });
+    .where({ id }).del();
 }
 
 // Add images to product

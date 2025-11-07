@@ -237,6 +237,18 @@ export async function updateProductService(id, productData, images = null, varia
 
     // Note: Product names are not required to be unique, SKUs are used for uniqueness
 
+    // Check if another product with same SKU already exists (for updates)
+    if (productData.sku_code) {
+      const duplicateProduct = await knex('byt_products')
+        .where({ sku_code: productData.sku_code })
+        .whereNot({ id })
+        .first();
+
+      if (duplicateProduct) {
+        return { error: 'Product with this SKU code already exists', status: 409 };
+      }
+    }
+
     // Set default status if not provided
     if (productData.status === undefined) {
       productData.status = 1; // active
