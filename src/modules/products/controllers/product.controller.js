@@ -826,5 +826,31 @@ export async function getAvailableProductsForOrder(req, res) {
   }
 }
 
+// Bulk delete products
+export async function bulkDeleteProducts(req, res) {
+  try {
+    const { productIds } = req.body;
+
+    if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+      return res.status(400).json({ statusCode: 400, error: 'Product IDs array is required' });
+    }
+
+    const result = await services.bulkDeleteProductsService(productIds);
+
+    if (result.error) {
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+
+    res.status(result.status).json({
+      statusCode: result.status,
+      message: result.message,
+      deletedProducts: result.deletedProducts,
+      errors: result.errors
+    });
+  } catch (error) {
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}
+
 // Export multer upload middleware
 export { upload, importUpload };

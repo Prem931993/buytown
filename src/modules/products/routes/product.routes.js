@@ -63,5 +63,6 @@ router.put('/:id', verifyDualAuth, upload.array('images', 10), productController
 router.put('/:id/images', verifyDualAuth, upload.array('images', 10), productController.updateProductImages);
 router.delete('/:id', verifyDualAuth, productController.deleteProduct);
 router.delete('/image/:imageId', verifyDualAuth, productController.deleteProductImage);
+router.delete('/', verifyDualAuth, productController.bulkDeleteProducts);
 
 export default router;

@@ -496,3 +496,37 @@ export async function deleteProductImageService(imageId) {
     return { error: error.message, status: 500 };
   }
 }
+
+// Bulk delete products by IDs
+export async function bulkDeleteProductsService(productIds) {
+  try {
+    if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+      return { error: 'Product IDs array is required', status: 400 };
+    }
+
+    const deletedProducts = [];
+    const errors = [];
+
+    for (const id of productIds) {
+      try {
+        const result = await deleteProductService(id);
+        if (result.error) {
+          errors.push({ id, error: result.error });
+        } else {
+          deletedProducts.push(id);
+        }
+      } catch (error) {
+        errors.push({ id, error: error.message });
+      }
+    }
+
+    return {
+      message: `Successfully deleted ${deletedProducts.length} products`,
+      deletedProducts,
+      errors,
+      status: errors.length > 0 ? 207 : 200 // 207 for partial success
+    };
+  } catch (error) {
+    return { error: error.message, status: 500 };
+  }
+}
