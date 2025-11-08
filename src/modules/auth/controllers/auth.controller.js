@@ -315,7 +315,7 @@ export async function userForgotPassword(req, res) {
   if (result.error) {
     return res.status(result.status).json({ statusCode: result.status, error: result.error });
   }
-  res.status(result.status).json({ statusCode: result.status, message: result.message, otp: result.otp }); // Include OTP in response for testing
+  res.status(result.status).json({ valid: true, otp: result.otp }); // Return valid and OTP as requested
 }
 
 // User Reset Password Controller - verifies OTP and resets password

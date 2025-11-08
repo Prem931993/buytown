@@ -242,7 +242,11 @@ export async function getGlobalSearch({ search = '', limit = 10 } = {}) {
     )
     .where('byt_products.deleted_at', null)
     .where('byt_products.status', 1)
-    .where('byt_products.name', 'ilike', searchTerm)
+    .where(function() {
+      this.where('byt_products.name', 'ilike', searchTerm)
+          .orWhere('byt_products.sku_code', 'ilike', searchTerm)
+          .orWhere('byt_products.hsn_code', 'ilike', searchTerm);
+    })
     .orderBy('byt_products.name')
     .limit(limit);
 
