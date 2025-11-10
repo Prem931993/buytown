@@ -367,14 +367,17 @@ export async function getAllCustomersWithOrders(req, res) {
 export async function getDeliveryPersonOrderStats(req, res) {
   try {
     const deliveryPersonId = req.user.id; // Get from authenticated user
-    const result = await services.getDeliveryPersonOrderStats(deliveryPersonId);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const result = await services.getDeliveryPersonOrderStats(deliveryPersonId, page, limit);
 
     if (result.success) {
       res.json({
         success: true,
         data: {
           stats: result.stats,
-          orders: result.orders
+          orders: result.orders,
+          pagination: result.pagination
         }
       });
     } else {

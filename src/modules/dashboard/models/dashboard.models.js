@@ -341,9 +341,20 @@ export async function getDeliveryPersonOrderStats(deliveryPersonId) {
   }
 }
 
-// Get delivery person orders with details
-export async function getDeliveryPersonOrders(deliveryPersonId) {
+// Get delivery person orders with details and pagination
+export async function getDeliveryPersonOrders(deliveryPersonId, page = 1, limit = 10) {
   try {
+    const offset = (page - 1) * limit;
+
+    // Get total count for pagination
+    const totalCountResult = await db('byt_orders')
+      .where('delivery_person_id', deliveryPersonId)
+      .count('* as count')
+      .first();
+
+    const total = parseInt(totalCountResult.count);
+
+    // Get paginated orders
     const orders = await db('byt_orders')
       .leftJoin('byt_users', 'byt_orders.user_id', 'byt_users.id')
       .leftJoin('byt_order_items', 'byt_orders.id', 'byt_order_items.order_id')
@@ -366,7 +377,9 @@ export async function getDeliveryPersonOrders(deliveryPersonId) {
         'byt_products.sku_code'
       )
       .where('byt_orders.delivery_person_id', deliveryPersonId)
-      .orderBy('byt_orders.created_at', 'desc');
+      .orderBy('byt_orders.created_at', 'desc')
+      .limit(limit)
+      .offset(offset);
 
     // Group order items by order
     const groupedOrders = orders.reduce((acc, item) => {
@@ -400,10 +413,17 @@ export async function getDeliveryPersonOrders(deliveryPersonId) {
     }, {});
 
     const orderList = Object.values(groupedOrders);
+    const totalPages = Math.ceil(total / limit);
 
     return {
       success: true,
-      orders: orderList
+      orders: orderList,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages
+      }
     };
   } catch (error) {
     return { success: false, error: error.message };

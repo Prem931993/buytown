@@ -137,18 +137,19 @@ export async function getOrderStatistics() {
   }
 }
 
-export async function getDeliveryPersonOrderStats(deliveryPersonId) {
+export async function getDeliveryPersonOrderStats(deliveryPersonId, page = 1, limit = 10) {
   try {
     // Fetch order stats summary
     const stats = await models.getDeliveryPersonOrderStats(deliveryPersonId);
 
-    // Fetch detailed orders assigned to delivery person
-    const orders = await models.getDeliveryPersonOrders(deliveryPersonId);
+    // Fetch detailed orders assigned to delivery person with pagination
+    const orders = await models.getDeliveryPersonOrders(deliveryPersonId, page, limit);
 
     return {
       success: true,
       stats: stats.stats,
-      orders: orders.orders
+      orders: orders.orders,
+      pagination: orders.pagination
     };
   } catch (error) {
     return { success: false, error: error.message };
