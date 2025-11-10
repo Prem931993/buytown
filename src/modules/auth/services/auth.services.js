@@ -7,6 +7,7 @@ import * as smsServices from './sms.services.js';
 import * as smsModels from '../models/sms.models.js';
 import { uploadToFTP } from '../../../config/ftp.js';
 import * as userModels from '../../users/models/user.models.js';
+import * as notificationServices from '../../notifications/services/notification.services.js';
 
 export async function registerService(data) {
   const error = validators.validateRegisterInput(data);
@@ -439,6 +440,18 @@ export async function setPasswordService(userId, newPassword, userAgent, ip, otp
     expires_at: knex.raw(`NOW() + interval '${process.env.REFRESH_TOKEN_EXPIRES_IN}'`)
   });
 
+  // Send push notification for PIN set
+  try {
+    await notificationServices.sendPushNotificationToUser(
+      user.id,
+      'PIN Set Successfully',
+      'Your PIN has been set successfully. You can now log in using your PIN.'
+    );
+  } catch (notificationError) {
+    console.error('Error sending PIN set notification:', notificationError);
+    // Don't fail the password set operation if notification fails
+  }
+
   return {
     message: 'Password set successfully. You are now logged in.',
     status: 200,
@@ -867,5 +880,19 @@ export async function logoutFromAllDevicesService(userId, currentSessionId) {
   } catch (error) {
     console.error('Error in logoutFromAllDevicesService:', error);
     return { error: 'Failed to logout from all devices.', status: 500 };
+  }
+}
+
+// Update push token service
+export async function updatePushTokenService(userId, pushToken) {
+  try {
+    await knex('byt_users')
+      .where({ id: userId })
+      .update({ push_token: pushToken });
+
+    return { status: 200 };
+  } catch (error) {
+    console.error('Error updating push token:', error);
+    return { error: 'Failed to update push token.', status: 500 };
   }
 }

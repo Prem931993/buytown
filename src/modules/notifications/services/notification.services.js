@@ -3,6 +3,9 @@ import * as emailService from '../../config/services/email.services.js';
 import * as smsService from '../../auth/services/sms.services.js';
 import * as generalSettingsModels from '../../general-settings/models/generalSettings.models.js';
 import * as logoModels from '../../logos/models/logo.models.js';
+import pkg from 'expo-server-sdk';
+const { Expo, ExpoPushMessage, ExpoPushToken } = pkg;
+import knex from '../../../config/db.js';
 
 export const createNotification = async (notificationData) => {
   try {
@@ -501,6 +504,128 @@ export const markAllNotificationsAsRead = async (userId) => {
     return true;
   } catch (error) {
     throw new Error(`Error marking all notifications as read: ${error.message}`);
+  }
+};
+
+// Push notification service using Expo
+export const sendPushNotification = async (pushToken, title, message, data = {}) => {
+  try {
+    // Check if push token is valid
+    if (!Expo.isExpoPushToken(pushToken)) {
+      throw new Error('Invalid Expo push token');
+    }
+
+    // Create the message
+    const pushMessage = {
+      to: pushToken,
+      sound: 'default',
+      title: title,
+      body: message,
+      data: data,
+      priority: 'default'
+    };
+
+    // Send the notification
+    const expo = new Expo();
+    const ticket = await expo.sendPushNotificationsAsync([pushMessage]);
+
+    return {
+      success: true,
+      ticket: ticket[0],
+      message: 'Push notification sent successfully'
+    };
+  } catch (error) {
+    console.error('Error sending push notification:', error);
+    return {
+      success: false,
+      error: error.message,
+      message: 'Failed to send push notification'
+    };
+  }
+};
+
+// Send push notification to user by user ID
+export const sendPushNotificationToUser = async (userId, title, message, data = {}) => {
+  try {
+    // Get user's push token from database
+    const user = await knex('byt_users')
+      .select('push_token')
+      .where({ id: userId })
+      .first();
+
+    if (!user || !user.push_token) {
+      console.log('No push token found for user', userId);
+      return {
+        success: false,
+        message: 'User not found or no push token available'
+      };
+    }
+
+    console.log('Push token retrieved from DB for user', userId, ':', user.push_token);
+
+    // Send the push notification
+    const result = await sendPushNotification(user.push_token, title, message, data);
+    console.log('Push notification result for user', userId, ':', result);
+    return result;
+  } catch (error) {
+    console.error('Error sending push notification to user:', error);
+    return {
+      success: false,
+      error: error.message,
+      message: 'Failed to send push notification to user'
+    };
+  }
+};
+
+// Send push notification to multiple users
+export const sendPushNotificationToUsers = async (userIds, title, message, data = {}) => {
+  try {
+    // Get push tokens for all users
+    const users = await knex('byt_users')
+      .select('id', 'push_token')
+      .whereIn('id', userIds)
+      .andWhereNotNull('push_token');
+
+    if (users.length === 0) {
+      return {
+        success: false,
+        message: 'No users found with push tokens'
+      };
+    }
+
+    // Create messages for each user
+    const messages = users.map(user => ({
+      to: user.push_token,
+      sound: 'default',
+      title: title,
+      body: message,
+      data: { ...data, userId: user.id },
+      priority: 'default'
+    }));
+
+    // Send notifications in chunks (Expo recommends max 100 per request)
+    const expo = new Expo();
+    const chunks = expo.chunkPushNotifications(messages);
+    const tickets = [];
+
+    for (const chunk of chunks) {
+      const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+      tickets.push(...ticketChunk);
+    }
+
+    return {
+      success: true,
+      tickets: tickets,
+      sentTo: users.length,
+      message: `Push notifications sent to ${users.length} users`
+    };
+  } catch (error) {
+    console.error('Error sending push notifications to users:', error);
+    return {
+      success: false,
+      error: error.message,
+      message: 'Failed to send push notifications to users'
+    };
   }
 };
 

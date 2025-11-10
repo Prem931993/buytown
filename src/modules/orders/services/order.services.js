@@ -523,6 +523,22 @@ export async function approveOrder(orderId, vehicleId, deliveryDistance, deliver
         };
         await notificationServices.createOrderStatusNotification(orderResult.order, user, 'confirmed');
 
+        // Send push notification to user
+        await notificationServices.sendPushNotificationToUser(
+          orderResult.order.user_id,
+          'Order Approved',
+          `Your order #${orderResult.order.order_number} has been approved and is ready for delivery.`
+        );
+
+        // Send push notification to delivery person if assigned
+        if (deliveryPersonId) {
+          await notificationServices.sendPushNotificationToUser(
+            deliveryPersonId,
+            'New Delivery Assignment',
+            `You have been assigned to deliver order #${orderResult.order.order_number}.`
+          );
+        }
+
       } catch (notificationError) {
         console.error('Error sending order approval notification:', notificationError);
       }
@@ -601,6 +617,17 @@ export async function rejectOrder(orderId, rejectionReason, rejectedByUserId = n
         console.error('Error sending order rejection notification:', notificationError);
       }
 
+      // Send push notification to user about order rejection
+      try {
+        await notificationServices.sendPushNotificationToUser(
+          orderResult.order.user_id,
+          'Order Rejected',
+          `Your order #${orderResult.order.order_number} has been rejected. Reason: ${rejectionReason}`
+        );
+      } catch (pushError) {
+        console.error('Error sending push notification for order rejection:', pushError);
+      }
+
       return { success: true, order: orderResult.order };
     } else {
       return { success: false, error: 'Order not found or could not be updated' };
@@ -649,6 +676,29 @@ export async function assignDeliveryPerson(orderId, deliveryPersonId, deliveryDi
     if (result > 0) {
       // Get updated order details
       const orderResult = await getOrderById(orderId);
+
+      // Send push notification to delivery person
+      try {
+        await notificationServices.sendPushNotificationToUser(
+          deliveryPersonId,
+          'New Delivery Assignment',
+          `You have been assigned to deliver order #${orderResult.order.order_number}.`
+        );
+      } catch (pushError) {
+        console.error('Error sending push notification for delivery assignment:', pushError);
+      }
+
+      // Send push notification to user
+      try {
+        await notificationServices.sendPushNotificationToUser(
+          orderResult.order.user_id,
+          'Delivery Person Assigned',
+          `A delivery person has been assigned to your order #${orderResult.order.order_number}.`
+        );
+      } catch (pushError) {
+        console.error('Error sending push notification for delivery assignment to user:', pushError);
+      }
+
       return { success: true, order: orderResult.order };
     } else {
       return { success: false, error: 'Order not found or could not be updated' };
@@ -703,6 +753,18 @@ export async function markOrderCompleted(orderId) {
       } catch (notificationError) {
         console.error('Error sending order approval notification:', notificationError);
       }
+
+      // Send push notification to user about order completion
+      try {
+        await notificationServices.sendPushNotificationToUser(
+          orderResult.order.user_id,
+          'Order Completed',
+          `Your order #${orderResult.order.order_number} has been successfully delivered.`
+        );
+      } catch (pushError) {
+        console.error('Error sending push notification for order completion:', pushError);
+      }
+
       return { success: true, order: orderResult.order };
     } else {
       return { success: false, error: 'Order not found or could not be updated' };
@@ -809,6 +871,17 @@ export async function cancelOrderByCustomer(orderId, customerId, cancellationRea
         console.error('Error sending order cancellation notification:', notificationError);
       }
 
+      // Send push notification to customer about order cancellation
+      try {
+        await notificationServices.sendPushNotificationToUser(
+          customerId,
+          'Order Cancelled',
+          `Your order #${orderResult.order.order_number} has been cancelled.`
+        );
+      } catch (pushError) {
+        console.error('Error sending push notification for order cancellation:', pushError);
+      }
+
       return { success: true, order: orderResult.order };
     } else {
       return { success: false, error: 'Order not found or could not be updated' };
@@ -870,6 +943,17 @@ export async function completeOrderByDelivery(orderId, deliveryPersonId) {
     await notificationModels.createNotification(adminNotification);
     await notificationModels.createNotification(userNotification);
 
+    // Send push notification to user about order completion
+    try {
+      await notificationServices.sendPushNotificationToUser(
+        order.order.user_id,
+        'Order Completed',
+        `Your order #${orderId} has been successfully delivered.`
+      );
+    } catch (pushError) {
+      console.error('Error sending push notification for order completion:', pushError);
+    }
+
     return { success: true, order: updatedOrder };
   } catch (error) {
     throw new Error(`Error completing order: ${error.message}`);
@@ -926,6 +1010,17 @@ export async function rejectOrderByDelivery(orderId, deliveryPersonId, rejection
     };
     await notificationModels.createNotification(adminNotification);
     await notificationModels.createNotification(userNotification);
+
+    // Send push notification to user about order rejection
+    try {
+      await notificationServices.sendPushNotificationToUser(
+        order.order.user_id,
+        'Order Rejected',
+        `Your order #${orderId} has been rejected. Reason: ${rejectionReason}`
+      );
+    } catch (pushError) {
+      console.error('Error sending push notification for order rejection:', pushError);
+    }
 
     return { success: true, order: updatedOrder };
   } catch (error) {
@@ -1064,25 +1159,25 @@ export async function addOrderItem(orderId, itemData) {
         .where('id', itemData.product_id)
         .increment('held_quantity', parseInt(itemData.quantity));
 
-      // Recalculate order totals
-      await recalculateOrderTotals(orderId);
+    // Recalculate order totals
+    await recalculateOrderTotals(orderId);
 
-      // Get updated order
-      const updatedOrder = await getOrderById(orderId);
+    // Get updated order
+    const updatedOrder = await getOrderById(orderId);
 
-      return { success: true, item: {
-        id: existingItem.id,
-        product_id: itemData.product_id,
-        variation_id: itemData.variation_id,
-        quantity: newQuantity,
-        price: price,
-        total_price: itemTotal,
-        product_name: productDetails.name,
-        sku: productDetails.sku_code,
-        hsn_code: productDetails.hsn_code,
-        gst_rate: gstRate,
-        tax_amount: taxAmount
-      }, order: updatedOrder.order, updated: true };
+    return { success: true, item: {
+      id: existingItem.id,
+      product_id: itemData.product_id,
+      variation_id: itemData.variation_id,
+      quantity: newQuantity,
+      price: price,
+      total_price: itemTotal,
+      product_name: productDetails.name,
+      sku: productDetails.sku_code,
+      hsn_code: productDetails.hsn_code,
+      gst_rate: gstRate,
+      tax_amount: taxAmount
+    }, order: updatedOrder.order, updated: true };
     }
 
     // Product doesn't exist in order, add as new item

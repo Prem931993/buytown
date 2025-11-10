@@ -49,6 +49,12 @@ export async function login(req, res) {
   if (result.error) {
     return res.status(result.status).json({ statusCode: result.status, error: result.error });
   }
+
+  // Update push token if provided
+  if (req.body.push_token && result.user?.id) {
+    await services.updatePushTokenService(result.user.id, req.body.push_token);
+  }
+
   res.status(result.status).json({
     statusCode: result.status,
     message: 'Login successful.',
@@ -247,7 +253,7 @@ export async function validatePhone(req, res) {
 }
 
 export async function setPassword(req, res) {
-  const { userId, newPassword, otp } = req.body;
+  const { userId, newPassword, otp, push_token } = req.body;
   if (!userId || !newPassword) {
     return res.status(400).json({ statusCode: 400, error: 'userId and newPassword are required.' });
   }
@@ -262,6 +268,12 @@ export async function setPassword(req, res) {
   if (result.error) {
     return res.status(result.status).json({ statusCode: result.status, error: result.error });
   }
+
+  // Update push token if provided
+  if (push_token && result.user?.id) {
+    await services.updatePushTokenService(result.user.id, push_token);
+  }
+
   res.status(result.status).json({
     statusCode: result.status,
     message: result.message,
