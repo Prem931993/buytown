@@ -3,9 +3,8 @@ import * as emailService from '../../config/services/email.services.js';
 import * as smsService from '../../auth/services/sms.services.js';
 import * as generalSettingsModels from '../../general-settings/models/generalSettings.models.js';
 import * as logoModels from '../../logos/models/logo.models.js';
-import pkg from 'expo-server-sdk';
-const { Expo, ExpoPushMessage, ExpoPushToken } = pkg;
 import knex from '../../../config/db.js';
+import admin from 'firebase-admin';
 
 export const createNotification = async (notificationData) => {
   try {
@@ -507,31 +506,67 @@ export const markAllNotificationsAsRead = async (userId) => {
   }
 };
 
-// Push notification service using Expo
+// Initialize Firebase Admin SDK
+if (!admin.apps.length) {
+  const serviceAccount = {
+    type: process.env.FIREBASE_TYPE,
+    project_id: process.env.FIREBASE_PROJECT_ID,
+    private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
+    private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    client_email: process.env.FIREBASE_CLIENT_EMAIL,
+    client_id: process.env.FIREBASE_CLIENT_ID,
+    auth_uri: "https://accounts.google.com/o/oauth2/auth",
+    token_uri: "https://oauth2.googleapis.com/token",
+    auth_provider_x509_cert_url: process.env.FIREBASE_AUTH_PROVIDER_X509_CERT_URL,
+    client_x509_cert_url: process.env.FIREBASE_CLIENT_X509_CERT_URL
+  };
+  
+  console.log("serviceAccount",serviceAccount)
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    projectId: process.env.FIREBASE_PROJECT_ID
+  });
+}
+
+// Push notification service using Firebase
 export const sendPushNotification = async (pushToken, title, message, data = {}) => {
   try {
-    // Check if push token is valid
-    if (!Expo.isExpoPushToken(pushToken)) {
-      throw new Error('Invalid Expo push token');
+    // Check if push token is valid FCM token
+    if (!pushToken || typeof pushToken !== 'string') {
+      throw new Error('Invalid push token');
     }
 
     // Create the message
     const pushMessage = {
-      to: pushToken,
-      sound: 'default',
-      title: title,
-      body: message,
+      token: pushToken,
+      notification: {
+        title: title,
+        body: message,
+      },
       data: data,
-      priority: 'default'
+      android: {
+        priority: 'high',
+        notification: {
+          sound: 'default',
+          channelId: 'default'
+        }
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: 'default',
+            badge: 1
+          }
+        }
+      }
     };
 
     // Send the notification
-    const expo = new Expo();
-    const ticket = await expo.sendPushNotificationsAsync([pushMessage]);
+    const response = await admin.messaging().send(pushMessage);
 
     return {
       success: true,
-      ticket: ticket[0],
+      messageId: response,
       message: 'Push notification sent successfully'
     };
   } catch (error) {
@@ -595,29 +630,51 @@ export const sendPushNotificationToUsers = async (userIds, title, message, data 
 
     // Create messages for each user
     const messages = users.map(user => ({
-      to: user.push_token,
-      sound: 'default',
-      title: title,
-      body: message,
-      data: { ...data, userId: user.id },
-      priority: 'default'
+      token: user.push_token,
+      notification: {
+        title: title,
+        body: message,
+      },
+      data: { ...data, userId: user.id.toString() },
+      android: {
+        priority: 'high',
+        notification: {
+          sound: 'default',
+          channelId: 'default'
+        }
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: 'default',
+            badge: 1
+          }
+        }
+      }
     }));
 
-    // Send notifications in chunks (Expo recommends max 100 per request)
-    const expo = new Expo();
-    const chunks = expo.chunkPushNotifications(messages);
-    const tickets = [];
+    // Send notifications in batches (Firebase recommends max 500 per request)
+    const batchSize = 500;
+    const results = [];
 
-    for (const chunk of chunks) {
-      const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
-      tickets.push(...ticketChunk);
+    for (let i = 0; i < messages.length; i += batchSize) {
+      const batch = messages.slice(i, i + batchSize);
+      try {
+        const batchResults = await admin.messaging().sendAll(batch);
+        results.push(...batchResults.responses);
+      } catch (error) {
+        console.error('Error sending batch:', error);
+      }
     }
+
+    const successCount = results.filter(result => result.success).length;
 
     return {
       success: true,
-      tickets: tickets,
-      sentTo: users.length,
-      message: `Push notifications sent to ${users.length} users`
+      results: results,
+      sentTo: successCount,
+      totalAttempted: users.length,
+      message: `Push notifications sent to ${successCount} out of ${users.length} users`
     };
   } catch (error) {
     console.error('Error sending push notifications to users:', error);
