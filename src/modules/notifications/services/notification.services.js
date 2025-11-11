@@ -521,7 +521,6 @@ if (!admin.apps.length) {
     client_x509_cert_url: process.env.FIREBASE_CLIENT_X509_CERT_URL
   };
   
-  console.log("serviceAccount",serviceAccount)
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
     projectId: process.env.FIREBASE_PROJECT_ID
