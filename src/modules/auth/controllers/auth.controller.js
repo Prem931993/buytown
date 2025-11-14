@@ -450,3 +450,26 @@ export async function logoutFromAllDevices(req, res) {
     res.status(500).json({ statusCode: 500, error: 'Internal server error' });
   }
 }
+
+// Change password controller
+export async function changePassword(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ statusCode: 401, error: 'Unauthorized' });
+    }
+
+
+    const { old_password, new_password } = req.body;
+
+    const result = await services.changePasswordService(userId, old_password, new_password);
+    if (result.error) {
+      return res.status(result.status).json({ statusCode: result.status, error: result.error });
+    }
+
+    res.status(200).json({ statusCode: 200, message: result.message });
+  } catch (error) {
+    console.error('Error in changePassword controller:', error);
+    res.status(500).json({ statusCode: 500, error: 'Internal server error' });
+  }
+}

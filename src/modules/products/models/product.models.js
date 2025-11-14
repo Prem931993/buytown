@@ -158,13 +158,15 @@ export async function getProductFilterValues(categoryIds = []) {
     baseConditions(sizeDimensionsQuery);
     const sizeDimensions = await sizeDimensionsQuery;
 
-    // Get distinct variations
+    // Get distinct variations (global, from product table variation_id)
     let variationsQuery = knex('byt_products')
       .leftJoin('byt_variations', 'byt_products.variation_id', 'byt_variations.id')
-      .select('byt_variations.id', 'byt_variations.label', 'byt_variations.value')
+      .select('byt_variations.id', 'byt_variations.label as name')
+      .where('byt_products.deleted_at', null)
+      .where('byt_products.status', 1)
       .whereNotNull('byt_variations.id')
       .distinct()
-      .orderBy('byt_variations.label');
+      .orderBy('name');
     baseConditions(variationsQuery);
     const variations = await variationsQuery;
 
@@ -177,17 +179,34 @@ export async function getProductFilterValues(categoryIds = []) {
     baseConditions(priceRangeQuery);
     const priceRange = await priceRangeQuery.first();
 
-    return {
-      categories: categories.filter(cat => cat.id && cat.name),
-      brands: brands.filter(brand => brand.id && brand.name),
-      colors: colors.map(c => c.color).filter(color => color),
-      sizeDimensions: sizeDimensions.map(s => s.size_dimension).filter(size => size),
-      variations: variations.filter(v => v.id && v.label),
-      priceRange: {
-        min: priceRange?.min_price || 0,
-        max: priceRange?.max_price || 0
-      }
-    };
+    const result = {};
+
+    const filteredCategories = categories.filter(cat => cat.id && cat.name);
+    if (filteredCategories.length > 0) {
+      result.categories = filteredCategories;
+    }
+
+    const filteredBrands = brands.filter(brand => brand.id && brand.name);
+    if (filteredBrands.length > 0) {
+      result.brands = filteredBrands;
+    }
+
+    const filteredColors = colors.map(c => c.color).filter(color => color);
+    if (filteredColors.length > 0) {
+      result.colors = filteredColors;
+    }
+
+    const filteredSizeDimensions = sizeDimensions.map(s => s.size_dimension).filter(size => size);
+    if (filteredSizeDimensions.length > 0) {
+      result.sizeDimensions = filteredSizeDimensions;
+    }
+
+    const filteredVariations = variations.filter(v => v.id && v.name);
+    if (filteredVariations.length > 0) {
+      result.variations = filteredVariations;
+    }
+
+    return result;
   } catch (error) {
     console.error('Error in getProductFilterValues:', error);
     throw error;

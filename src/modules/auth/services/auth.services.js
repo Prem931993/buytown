@@ -127,9 +127,9 @@ export async function registerService(data) {
 
 export async function loginService(data, apiRole) {
   const error = validators.validateLoginInput(data);
-  if (error) return { error, status: 400 };
+    if (error) return { error, status: 400 };
 
-  const { identity, password, user_agent, ip } = data;
+    const { identity, password, user_agent, ip } = data;
   const user = await models.findUserByIdentity(identity);
   if (!user) return { error: 'No account found for the provided identity. Please check your credentials and try again.', status: 401 };
 
@@ -837,9 +837,9 @@ export async function getActiveDevicesService(userId) {
     console.error('Error in getActiveDevicesService:', error);
     return { error: 'Failed to retrieve active devices.', status: 500 };
   }
-}
+    }
 
-// Logout from specific device/session
+    // Logout from specific device/session
 export async function logoutFromDeviceService(userId, sessionId) {
   try {
     // Verify the session belongs to the user
@@ -894,5 +894,40 @@ export async function updatePushTokenService(userId, pushToken) {
   } catch (error) {
     console.error('Error updating push token:', error);
     return { error: 'Failed to update push token.', status: 500 };
+  }
+}
+
+// Change password service - verifies old password and updates to new password
+export async function changePasswordService(userId, oldPassword, newPassword) {
+  try {
+    // Validate input
+    const error = validators.validateChangePasswordInput({ old_password: oldPassword, new_password: newPassword });
+    if (error) return { error, status: 400 };
+
+    // Find user
+    const user = await models.findUserById(userId);
+    if (!user) {
+      return { error: 'User not found.', status: 404 };
+    }
+
+    // Verify old password
+    const isOldPasswordValid = await helpers.comparePassword(oldPassword, user.password);
+    if (!isOldPasswordValid) {
+      return { error: 'Old password is incorrect.', status: 400 };
+    }
+
+    // Hash new password
+    const hashedNewPassword = await helpers.hashPassword(newPassword);
+
+    // Update password
+    await models.updateUserPassword(userId, hashedNewPassword);
+
+    return {
+      message: 'Password changed successfully.',
+      status: 200
+    };
+  } catch (error) {
+    console.error('Error in changePasswordService:', error);
+    return { error: 'Failed to change password.', status: 500 };
   }
 }

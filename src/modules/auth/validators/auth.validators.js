@@ -33,4 +33,17 @@ export const validateApiTokenInput = ({ client_id, client_secret }) => {
     return 'Both client_id and client_secret are required.';
   }
   return null;
-}; 
+};
+
+export const validateChangePasswordInput = ({ old_password, new_password }) => {
+  if (!old_password || !new_password) {
+    return 'Both old password and new password are required.';
+  }
+  if (new_password.length < 4) {
+    return 'New password must be at least 4 characters long.';
+  }
+  if (old_password === new_password) {
+    return 'New password must be different from the old password.';
+  }
+  return null;
+};

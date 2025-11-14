@@ -74,4 +74,7 @@ router.get('/user/devices', verifyUserDualAuth, authController.getActiveDevices)
 router.delete('/user/devices/:sessionId', verifyUserDualAuth, authController.logoutFromDevice);
 router.delete('/user/devices', verifyUserDualAuth, authController.logoutFromAllDevices);
 
+// Change password route
+router.put('/user/change-password', verifyUserDualAuth, authController.changePassword);
+
 export default router;

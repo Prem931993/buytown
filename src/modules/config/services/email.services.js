@@ -120,6 +120,16 @@ export async function sendEmail(config, emailOptions) {
         text: emailOptions.text,
       };
 
+      // Add attachments for SendGrid if present
+      if (emailOptions.attachments && emailOptions.attachments.length > 0) {
+        msg.attachments = emailOptions.attachments.map(attachment => ({
+          content: attachment.content.toString('base64'),
+          filename: attachment.filename,
+          type: attachment.contentType,
+          disposition: 'attachment'
+        }));
+      }
+
       const result = await transporterResult.transporter.send(msg);
       return { success: true, messageId: result[0]?.headers?.['x-message-id'] || 'sendgrid-sent', info: result };
     } else {
